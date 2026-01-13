@@ -1,7 +1,7 @@
 import { defineExtensionMessaging } from '@webext-core/messaging'
 
 export interface CrawlResult {
-  [key: string]: any
+  ssrData: Record<string, any> | null
 }
 
 export interface ProtocolMap {

@@ -11,6 +11,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    ColorMode: typeof import('./components/color-mode.vue')['default']
+    ThemeController: typeof import('./components/theme-controller.vue')['default']
   }
 }

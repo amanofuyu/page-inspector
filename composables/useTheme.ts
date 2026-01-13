@@ -1,5 +1,5 @@
-import { COLOR_MODE_KEY } from '@/constant/key'
-import { sendMessage } from '@/lib/messaging'
+import { COLOR_MODE_KEY } from '@/constants/key'
+import { sendMessage } from '@/libs/messaging'
 import { useExtStorage } from './useExtStorage'
 
 export type ColorMode = 'dark' | 'light' | 'auto'

@@ -5,7 +5,7 @@ import { safe } from '@/utils/safe'
  * Nuxt 序列化数据格式的类型定义
  * 这是一个自引用的数据结构，使用索引来避免重复数据
  */
-type NuxtPayloadValue
+export type NuxtPayloadValue
   = | string
     | number
     | boolean
@@ -16,15 +16,15 @@ type NuxtPayloadValue
     | NuxtPayloadArray
     | NuxtPayloadObject
 
-type NuxtPayloadArray = Array<number | NuxtPayloadValue>
+export type NuxtPayloadArray = Array<number | NuxtPayloadValue>
 
-interface NuxtPayloadObject {
+export interface NuxtPayloadObject {
   [key: string]: number | NuxtPayloadValue
 }
 
-type NuxtPayload = NuxtPayloadArray
+export type NuxtPayload = NuxtPayloadArray
 
-interface NuxtPayloadResult {
+export interface NuxtPayloadResult {
   data: Record<string, Record<string, any>>
   once: any[]
   path: string
@@ -109,7 +109,9 @@ export async function handleCrawl(_url?: string) {
           return parseNuxtPayload(source)
         }
 
-        return getParsedNuxtData()
+        return {
+          ssrData: getParsedNuxtData(),
+        }
       },
     }))
 
