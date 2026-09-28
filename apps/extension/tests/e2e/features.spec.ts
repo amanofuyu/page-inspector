@@ -162,3 +162,89 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
   await clickText(panel, '数据', '.workspace-tabs')
   await expect.poll(() => pressed(treeButton)).toBe('false')
 })
+
+test('来源减少后回到合并模式并恢复分析与检索', async ({ extension }) => {
+  const { panel, website } = extension
+  await website.goto(`${base}/external`)
+  await expect.poll(() => panel.text()).toContain('2 个来源')
+  await clickText(panel, '分析', '.workspace-tabs')
+  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
+  await panel.select('[aria-label="分析来源"]', '1')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[aria-label="扩展工作区"] > [role="status"]')?.textContent)).toContain('完整')
+  expect(await panel.evaluate(() => document.querySelector<HTMLSelectElement>('[aria-label="分析来源"]')?.selectedIndex)).toBe(2)
+  await website.goto(`${base}/features?version=1`)
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.ranking-list')?.textContent)).toContain('feature-lab')
+  expect(await panel.evaluate(() => document.querySelector<HTMLSelectElement>('[aria-label="分析来源"]')?.selectedIndex)).toBe(0)
+  expect(await panel.text()).not.toContain('内容为空')
+  await clickText(panel, '重建索引')
+  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
+  await clickText(panel, '检索', '.workspace-tabs')
+  await fillField(panel, '[aria-label="条件 1 内容"]', 'feature-lab.watched.price')
+  await clickText(panel, '执行查询')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.query-result-status')?.textContent)).toContain('1 条匹配')
+})
+
+test('检索详情就地展开、分页清理与可见错误恢复', async ({ extension }, testInfo) => {
+  const { panel, website } = extension
+  await website.goto(`${base}/features?version=1`)
+  await expect.poll(() => panel.text()).toContain('feature-lab')
+  await clickText(panel, '检索', '.workspace-tabs')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[aria-label="扩展工作区"] > [role="status"]')?.textContent)).toContain('完整')
+  await panel.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 780, deviceScaleFactor: 1, mobile: false })
+  await fillField(panel, '[aria-label="条件 1 内容"]', 'feature-lab.many.*')
+  await clickText(panel, '执行查询')
+  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.query-result').length)).toBe(50)
+  const first = '.query-result:nth-of-type(1)'
+  const second = '.query-result:nth-of-type(2)'
+  await panel.click(`${first} > .path-button`)
+  await expect.poll(() => panel.evaluate(() => document.querySelector('#query-detail-0')?.getAttribute('aria-busy'))).toBe('false')
+  expect(await panel.evaluate(() => {
+    const row = document.querySelector('.query-result')!
+    const button = row.querySelector('.path-button')!
+    const detail = row.querySelector('.field-detail')!
+    const bounds = detail.getBoundingClientRect()
+    return button.getAttribute('aria-expanded') === 'true'
+      && document.getElementById(button.getAttribute('aria-controls')!) === detail
+      && bounds.top >= button.getBoundingClientRect().bottom
+      && bounds.top < innerHeight
+      && bounds.bottom <= row.nextElementSibling!.getBoundingClientRect().top
+      && !document.querySelector('.feature-columns > .field-detail')
+      && document.documentElement.scrollWidth <= innerWidth
+  })).toBe(true)
+  const expanded = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
+  await writeFile(testInfo.outputPath('query-inline-detail.png'), Buffer.from(expanded.data, 'base64'))
+  await panel.click(`${second} > .path-button`)
+  await expect.poll(() => panel.evaluate(() => document.querySelector('#query-detail-1')?.getAttribute('aria-busy'))).toBe('false')
+  expect(await panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(1)
+  await panel.click(`${second} > .path-button`)
+  expect(await panel.evaluate(() => document.querySelector('.inline-field-detail'))).toBeNull()
+  await panel.click(`${first} > .path-button`)
+  await expect.poll(() => panel.evaluate(() => document.querySelector('#query-detail-0')?.getAttribute('aria-busy'))).toBe('false')
+  await clickText(panel, '下一页')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.query-result > .path-button')?.textContent)).toContain('field50')
+  expect(await panel.evaluate(() => document.querySelector('.inline-field-detail'))).toBeNull()
+
+  await panel.select('[aria-label="条件 1 字段"]', 'value')
+  await panel.select('[aria-label="条件 1 比较"]', 'eq')
+  await panel.select('[aria-label="条件 1 值类型"]', 'number')
+  await fillField(panel, '[aria-label="条件 1 内容"]', 'invalid-number')
+  await clickText(panel, '执行查询')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.query-error')?.textContent)).toContain('请输入明确的数字')
+  expect(await panel.evaluate(() => {
+    const error = document.querySelector('.query-error')!
+    const bounds = error.getBoundingClientRect()
+    return error.getAttribute('role') === 'alert' && bounds.top >= 0 && bounds.bottom <= innerHeight
+      && !document.querySelector('.query-result') && !document.querySelector('.query-result-status')
+      && !document.querySelector('.field-detail')
+  })).toBe(true)
+  const failed = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
+  await writeFile(testInfo.outputPath('query-local-error.png'), Buffer.from(failed.data, 'base64'))
+  await fillField(panel, '[aria-label="条件 1 内容"]', '11999')
+  await clickText(panel, '执行查询')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.query-result-status')?.textContent)).toContain('1 条匹配')
+  expect(await panel.evaluate(() => document.querySelector('.query-error'))).toBeNull()
+  await panel.click(`${first} > .path-button`)
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.inline-field-detail')?.textContent)).toContain('11999')
+  await clickText(panel, '关注', '.workspace-tabs')
+  expect(await panel.evaluate(() => document.querySelector('.field-detail'))).toBeNull()
+})

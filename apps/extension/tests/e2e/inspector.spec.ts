@@ -54,7 +54,7 @@ test('真实侧边栏：类型、展开、搜索、复制、导出与主题', as
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('字段展开热区、键盘操作和独立复制', async ({ extension }) => {
+test('字段展开热区、选区与拖动、键盘操作和独立复制', async ({ extension }) => {
   const { panel } = extension
   // 点击字段文字和摘要，验证热区已经覆盖箭头之外的内容。
   await panel.click('[aria-label="展开 sample"] .tree-key')
@@ -67,6 +67,45 @@ test('字段展开热区、键盘操作和独立复制', async ({ extension }) =
   expect(target.height).toBeGreaterThanOrEqual(32)
   await panel.click('[aria-label="折叠 sample"] .tree-value')
   await expect.poll(() => panel.text()).not.toContain('Nuxt 3.17.5')
+
+  // 已有选区不应屏蔽展开；真实鼠标轻微拖动也不能把分支字段名变成选中文字。
+  await panel.evaluate(() => {
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector('.export-note')!)
+    window.getSelection()!.removeAllRanges()
+    window.getSelection()!.addRange(range)
+  })
+  expect(await panel.evaluate(() => window.getSelection()?.toString())).toContain('视图导出')
+  await panel.click('[aria-label="展开 sample"] .tree-key')
+  await expect.poll(() => panel.text()).toContain('Nuxt 3.17.5')
+  await panel.click('[aria-label="折叠 sample"] .tree-indicator')
+  await expect.poll(() => panel.text()).not.toContain('Nuxt 3.17.5')
+  await panel.evaluate(() => {
+    window.getSelection()?.removeAllRanges()
+    document.querySelector('[aria-label="展开 sample"]')!.scrollIntoView({ block: 'center' })
+  })
+  const text = await panel.evaluate(() => {
+    const bounds = document.querySelector('[aria-label="展开 sample"] .tree-key')!.getBoundingClientRect()
+    return { x: bounds.left + 3, y: bounds.top + bounds.height / 2 }
+  })
+  await panel.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...text, button: 'left', clickCount: 1 })
+  await panel.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: text.x + 7, y: text.y, button: 'left', buttons: 1 })
+  await panel.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: text.x + 7, y: text.y, button: 'left', clickCount: 1 })
+  await expect.poll(() => panel.text()).toContain('Nuxt 3.17.5')
+  expect(await panel.evaluate(() => window.getSelection()?.toString())).toBe('')
+  expect(await panel.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('折叠 sample')
+
+  // 展开会改变滚动位置，重新定位后验证双击事件不会产生字段名选区。
+  const doubleClickTarget = await panel.evaluate(() => {
+    const field = document.querySelector('[aria-label="折叠 sample"] .tree-key')!
+    field.scrollIntoView({ block: 'center' })
+    const bounds = field.getBoundingClientRect()
+    return { x: bounds.left + 3, y: bounds.top + bounds.height / 2 }
+  })
+  await panel.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...doubleClickTarget, button: 'left', clickCount: 2 })
+  await panel.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...doubleClickTarget, button: 'left', clickCount: 2 })
+  await expect.poll(() => panel.text()).not.toContain('Nuxt 3.17.5')
+  expect(await panel.evaluate(() => window.getSelection()?.toString())).toBe('')
 
   await panel.evaluate(() => document.querySelector<HTMLButtonElement>('[aria-label="展开 sample"]')!.focus())
   expect(await panel.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('展开 sample')
@@ -157,4 +196,46 @@ test('大数据限制不隐藏状态分类，窄侧栏可用', async ({ extensio
   })
   const screenshot = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
   await writeFile(testInfo.outputPath('sidepanel-narrow.png'), Buffer.from(screenshot.data, 'base64'))
+})
+
+test('重新读取保留内容、展开状态与搜索，并稳定显示加载反馈', async ({ extension }) => {
+  const { panel } = extension
+  await panel.click('[aria-label="展开 sample"]')
+  await expect.poll(() => panel.text()).toContain('Nuxt 3.17.5')
+  await panel.evaluate(() => {
+    const button = document.querySelector<HTMLButtonElement>('.page-actions button')!
+    const tree = document.querySelector('.tree-container > .tree-node')!
+    const workbench = document.querySelector('[aria-label="扩展工作区"]')!
+    const initialWidth = button.getBoundingClientRect().width
+    const probe = { started: 0, elapsed: 0, preserved: true, stableWidth: true }
+    const observer = new MutationObserver(() => {
+      if (!probe.started && button.disabled)
+        probe.started = performance.now()
+      if (!probe.started)
+        return
+      probe.preserved &&= tree.isConnected && getComputedStyle(workbench).display !== 'none'
+        && !document.querySelector('.empty-state')
+      probe.stableWidth &&= button.getBoundingClientRect().width === initialWidth
+      if (!button.disabled) {
+        probe.elapsed = performance.now() - probe.started
+        document.documentElement.dataset.refreshProbe = JSON.stringify(probe)
+        observer.disconnect()
+      }
+    })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+  })
+  await panel.click('.page-actions button')
+  expect(await panel.evaluate(() => document.querySelector<HTMLButtonElement>('.page-actions button')?.disabled)).toBe(true)
+  await expect.poll(() => panel.evaluate(() => document.documentElement.dataset.refreshProbe)).toBeTruthy()
+  const probe = await panel.evaluate(() => JSON.parse(document.documentElement.dataset.refreshProbe!))
+  expect(probe.elapsed).toBeGreaterThanOrEqual(380)
+  expect(probe.preserved).toBe(true)
+  expect(probe.stableWidth).toBe(true)
+  expect(await panel.evaluate(() => document.querySelector('[aria-label="折叠 sample"]')?.getAttribute('aria-expanded'))).toBe('true')
+  await panel.search('amount')
+  await expect.poll(() => panel.text()).toContain('1 条匹配')
+  await panel.click('.page-actions button')
+  await expect.poll(() => panel.evaluate(() => document.querySelector<HTMLButtonElement>('.page-actions button')?.disabled)).toBe(false)
+  expect(await panel.evaluate(() => document.querySelector<HTMLInputElement>('input[type="search"]')?.value)).toBe('amount')
+  expect(await panel.text()).toContain('1 条匹配')
 })

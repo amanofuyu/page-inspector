@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { responseSnapshot } from '../network/session'
-import { Braces, CircleAlert, Download, Info, LockKeyhole, RefreshCw, ScanLine, Search } from '@lucide/vue'
+import { CircleAlert, Download, Info, LockKeyhole, RefreshCw, ScanLine, Search } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import ThemeController from '@/components/theme-controller.vue'
@@ -17,24 +17,35 @@ const props = defineProps<{
   targetTabId?: number
   devtools?: boolean
 }>()
-const { result, status, message, currentUrl, snapshotWarning, refresh, tabId } = useInspection(props.targetTabId === undefined ? undefined : { tabId: props.targetTabId })
+const { result, status: pageStatus, message, currentUrl, snapshotWarning, refresh, tabId } = useInspection(props.targetTabId === undefined ? undefined : { tabId: props.targetTabId })
 const activeFeature = ref('data')
 const workbench = ref<InstanceType<typeof FeatureWorkbench> | null>(null)
 const responseOverride = shallowRef<ReturnType<typeof responseSnapshot> | null>(null)
+// 手动重读时继续展示当前快照，只有导航、空结果或成功的新快照会替换内容。
+const status = computed(() => {
+  if (responseOverride.value)
+    return 'ready'
+  if (result.value && (pageStatus.value === 'loading' || pageStatus.value === 'error'))
+    return result.value.status === 'ready' ? 'ready' : 'empty'
+  return pageStatus.value
+})
 const snapshot = computed(() => responseOverride.value?.snapshot ?? result.value?.snapshot)
-const statusLabel = computed(() => ({ loading: '读取中', ready: '已采集', empty: '无数据', error: '读取失败' })[status.value])
+const statusLabel = computed(() => responseOverride.value ? '浏览器响应' : ({ loading: '读取中', ready: '已采集', empty: '无数据', error: '读取失败' })[pageStatus.value])
 const appIndex = ref(0)
 const sourceIndex = ref(0)
+const view = ref('data')
+const query = ref('')
+const search = refDebounced(query, 150)
+const notice = ref('')
 function inspectResponse(value: ReturnType<typeof responseSnapshot>) {
   responseOverride.value = value
   appIndex.value = 0
   sourceIndex.value = 0
   activeFeature.value = 'data'
+  view.value = 'data'
+  query.value = ''
+  notice.value = ''
 }
-const view = ref('data')
-const query = ref('')
-const search = refDebounced(query, 150)
-const notice = ref('')
 const application = computed(() => snapshot.value?.apps[appIndex.value])
 const parsed = computed(() => application.value ? parseApp(application.value) : null)
 const tree = computed(() => parsed.value?.payload ? buildPayloadView(parsed.value.payload, view.value) : null)
@@ -82,17 +93,40 @@ watch(appIndex, () => {
   if (application.value && !responseOverride.value)
     selectedDeclaredId = application.value.declaredId ?? null
 })
-watch(() => result.value?.requestId, () => {
-  responseOverride.value = null
+function selectPageApplication() {
   const apps = result.value?.snapshot?.apps ?? []
-  if (!apps.length)
-    return
   const matching = selectedDeclaredId ? apps.filter(app => app.declaredId === selectedDeclaredId) : []
   appIndex.value = matching.length === 1 ? apps.indexOf(matching[0]!) : 0
-  selectedDeclaredId = apps[appIndex.value]?.declaredId ?? null
+  if (apps.length)
+    selectedDeclaredId = apps[appIndex.value]?.declaredId ?? null
+}
+function returnToPageSnapshot() {
+  if (responseOverride.value)
+    activeFeature.value = 'data'
+  responseOverride.value = null
+  selectPageApplication()
   sourceIndex.value = 0
   query.value = ''
   notice.value = ''
+}
+watch(result, (next, previous) => {
+  // 同一文档的手动重读保留搜索与来源选择；导航和独立响应切换仍重置视图。
+  const sameDocument = next?.documentId && next.documentId === previous?.documentId && next.tabId === previous.tabId
+  if (!responseOverride.value && sameDocument) {
+    const previousApp = previous?.snapshot?.apps[appIndex.value]?.id
+    selectPageApplication()
+    if (application.value?.id !== previousApp) {
+      sourceIndex.value = 0
+      query.value = ''
+    }
+    else if (!application.value?.sources[sourceIndex.value]) {
+      sourceIndex.value = 0
+    }
+    notice.value = ''
+  }
+  else {
+    returnToPageSnapshot()
+  }
 })
 watch(appIndex, () => {
   sourceIndex.value = 0
@@ -109,7 +143,7 @@ watch(view, () => {
     <div class="inspector-ambience" aria-hidden="true" />
     <header class="app-header">
       <div class="brand">
-        <span class="brand-icon" aria-hidden="true"><Braces :size="26" :stroke-width="1.5" /></span>
+        <img class="brand-icon" src="/icon.svg" width="36" height="36" alt="" aria-hidden="true">
         <div>
           <h1>Page Inspector</h1>
           <p>NUXT PAYLOAD EXPLORER</p>
@@ -121,7 +155,7 @@ watch(view, () => {
       <section class="page-card glass-card" aria-label="当前页面">
         <div class="section-heading">
           <span class="eyebrow">当前页面</span>
-          <span class="capture-status" :data-status="status">
+          <span class="capture-status" :data-status="responseOverride ? status : pageStatus" role="status">
             <span class="status-dot" aria-hidden="true" />{{ statusLabel }}
           </span>
         </div>
@@ -133,10 +167,13 @@ watch(view, () => {
         </p>
         <div class="page-actions">
           <span class="capture-time">{{ snapshot ? `${new Date(snapshot.collectedAt).toLocaleTimeString()} 采集` : '读取当前标签页的初始数据' }}</span>
-          <button class="btn btn-sm btn-ghost" :disabled="status === 'loading'" @click="refresh">
-            <RefreshCw :size="14" :class="{ 'animate-spin': status === 'loading' }" aria-hidden="true" />{{ status === 'loading' ? '读取中' : '重新读取' }}
+          <button class="btn btn-sm btn-ghost refresh-button" :disabled="pageStatus === 'loading'" @click="refresh">
+            <RefreshCw :size="14" :class="{ 'animate-spin': pageStatus === 'loading' }" aria-hidden="true" />{{ pageStatus === 'loading' ? '读取中' : '重新读取' }}
           </button>
         </div>
+        <p v-if="pageStatus === 'error' && result && !responseOverride" class="refresh-error" role="alert">
+          重新读取失败，仍显示上次结果：{{ message }}
+        </p>
       </section>
 
       <nav class="workspace-tabs glass-card" aria-label="工作区">
@@ -165,7 +202,7 @@ watch(view, () => {
         <p>当前文档中没有支持的 Nuxt JSON payload 节点。页面加载完成后可重新读取。</p>
       </section>
       <template v-else-if="application && parsed">
-        <p v-if="snapshotWarning" class="notice notice-warning" role="status">
+        <p v-if="snapshotWarning && !responseOverride" class="notice notice-warning" role="status">
           {{ snapshotWarning }}
         </p>
         <p v-for="warning in snapshot?.warnings" :key="warning" class="notice notice-warning">
@@ -192,12 +229,12 @@ watch(view, () => {
         </details>
       </template>
       <p v-if="responseOverride" class="notice notice-warning">
-        当前查看显式选择的浏览器响应。<button class="btn btn-xs btn-ghost" @click="responseOverride = null">
+        当前查看显式选择的浏览器响应。<button class="btn btn-xs btn-ghost" @click="returnToPageSnapshot">
           返回页面快照
         </button>
       </p>
       <NetworkView v-if="devtools" :active="activeFeature === 'network'" :snapshot="result?.snapshot" :app="result?.snapshot?.apps[appIndex]" :document-id="result?.documentId" :tab-id="targetTabId" @notice="notice = $event" @inspect="inspectResponse" />
-      <FeatureWorkbench ref="workbench" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" @notice="notice = $event" @activate="activeFeature = $event">
+      <FeatureWorkbench ref="workbench" :aria-busy="pageStatus === 'loading' && !responseOverride" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" @notice="notice = $event" @activate="activeFeature = $event">
         <template #data="{ watchedPaths, pendingWatchPaths }">
           <section v-if="application && parsed" v-show="activeFeature === 'data'" class="data-card glass-card" aria-label="Payload 数据">
             <div class="data-heading">
@@ -272,7 +309,7 @@ watch(view, () => {
               </p>
             </div>
             <div v-else class="tree-container">
-              <DataTreeNode :key="`${result?.requestId}:${appIndex}:${view}`" :node="selectedNode" initial-open :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="notice = $event" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
+              <DataTreeNode :key="`${responseOverride?.snapshot.snapshotId ?? result?.documentId ?? result?.requestId}:${application.id}:${view}`" :node="selectedNode" initial-open :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="notice = $event" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
             </div>
             <p class="export-note">
               视图导出保留类型与引用标记；原文导出保留采集文本。

@@ -15,7 +15,11 @@ export default defineConfig({
     minimum_chrome_version: '116',
     permissions: ['storage', 'scripting'],
     host_permissions: ['http://*/*', 'https://*/*'],
-    action: { default_title: '查看 Nuxt 数据' },
+    icons: { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png', 128: 'icon/128.png' },
+    action: {
+      default_title: '查看 Nuxt 数据',
+      default_icon: { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png', 128: 'icon/128.png' },
+    },
     commands: {
       open_sidepanel: {
         suggested_key: { default: 'Ctrl+M', mac: 'Command+M' },

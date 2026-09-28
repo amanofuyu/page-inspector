@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @page-inspector/extension dev",
+    "icons:generate": "pnpm --filter @page-inspector/extension icons:generate",
     "dev:nuxt3": "pnpm --filter @page-inspector/nuxt3 dev",
     "dev:nuxt4": "pnpm --filter @page-inspector/nuxt4 dev",
     "build": "pnpm --filter @page-inspector/extension build",

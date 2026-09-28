@@ -22,11 +22,8 @@ const emit = defineEmits<{
 }>()
 const expanded = ref(props.initialOpen ?? false)
 const limit = ref(100)
-function toggle(event: MouseEvent) {
+function toggle() {
   if (!props.node.children)
-    return
-  // 拖动选择字段文本时不切换状态，键盘触发的点击仍正常生效。
-  if (event.detail > 0 && window.getSelection()?.toString())
     return
   expanded.value = !expanded.value
 }

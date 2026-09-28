@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "wxt --mode dev",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "test": "vitest run",
     "build": "wxt build --mode prod",
     "zip:test": "wxt zip --mode dev",

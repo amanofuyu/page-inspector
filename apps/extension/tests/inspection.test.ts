@@ -58,6 +58,7 @@ beforeEach(async () => {
 afterEach(() => {
   app.unmount()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 describe('侧边栏结果归属', () => {
   it('切换标签页时慢响应不能覆盖新页，且只查询所在窗口', async () => {
@@ -130,5 +131,103 @@ describe('devTools 固定目标与侧栏共存', () => {
     expect(pending).toHaveLength(1)
     tabs.onUpdated.fire(2, { status: 'loading' })
     expect(state.status.value).toBe('ready')
+  })
+})
+
+describe('重新读取的稳定加载反馈', () => {
+  beforeEach(async () => {
+    pending[0]!.resolve(response(1, pending[0]!.requestId))
+    await vi.waitFor(() => expect(state.status.value).toBe('ready'))
+    vi.useFakeTimers()
+  })
+  it('快速响应保留旧快照直到 400ms 后统一替换', async () => {
+    const previous = state.result.value
+    const task = state.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    pending[1]!.resolve(response(1, pending[1]!.requestId))
+    await vi.advanceTimersByTimeAsync(399)
+    expect(state.status.value).toBe('loading')
+    expect(state.result.value).toBe(previous)
+    await vi.advanceTimersByTimeAsync(1)
+    await task
+    expect(state.status.value).toBe('ready')
+    expect(state.result.value?.requestId).toBe(pending[1]!.requestId)
+  })
+  it('慢请求完成后直接呈现，不额外叠加 400ms', async () => {
+    const previous = state.result.value
+    const task = state.refresh()
+    await vi.advanceTimersByTimeAsync(700)
+    expect(state.result.value).toBe(previous)
+    pending[1]!.resolve(response(1, pending[1]!.requestId))
+    await vi.advanceTimersByTimeAsync(0)
+    await task
+    expect(state.status.value).toBe('ready')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+  it('失败也满足最短反馈时间，保留旧结果并允许重试', async () => {
+    const previous = state.result.value
+    const task = state.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    pending[1]!.resolve({ ...response(1, pending[1]!.requestId), status: 'error', snapshot: null, message: '暂时读取失败' })
+    await vi.advanceTimersByTimeAsync(399)
+    expect(state.status.value).toBe('loading')
+    expect(state.message.value).toBe('')
+    await vi.advanceTimersByTimeAsync(1)
+    await task
+    expect(state.status.value).toBe('error')
+    expect(state.message.value).toBe('暂时读取失败')
+    expect(state.result.value).toBe(previous)
+    const retry = state.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    pending[2]!.resolve(response(1, pending[2]!.requestId))
+    await vi.advanceTimersByTimeAsync(400)
+    await retry
+    expect(state.status.value).toBe('ready')
+    expect(state.message.value).toBe('')
+  })
+  it('最短等待期间切换标签页立即清除旧结果，不能提交旧响应', async () => {
+    const task = state.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    pending[1]!.resolve(response(1, pending[1]!.requestId))
+    await vi.advanceTimersByTimeAsync(100)
+    activeTab = 2
+    tabs.onActivated.fire({ tabId: 2, windowId: 10 })
+    expect(state.result.value).toBeNull()
+    await vi.advanceTimersByTimeAsync(150)
+    await task
+    expect(state.result.value).toBeNull()
+    pending[2]!.resolve(response(2, pending[2]!.requestId))
+    await vi.advanceTimersByTimeAsync(250)
+    expect(state.result.value?.tabId).toBe(2)
+    expect(state.status.value).toBe('ready')
+  })
+  it('卸载取消最短等待并释放计时器', async () => {
+    const previous = state.result.value
+    const task = state.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    pending[1]!.resolve(response(1, pending[1]!.requestId))
+    await vi.advanceTimersByTimeAsync(100)
+    app.unmount()
+    await task
+    expect(vi.getTimerCount()).toBe(0)
+    expect(state.result.value).toBe(previous)
+  })
+  it('导航加载中的空结果等待重试，不闪现空状态或重复追加最短等待', async () => {
+    const previous = state.result.value
+    tabs.query.mockResolvedValue([{ id: 1, url: 'https://example.com/', status: 'loading' }])
+    const task = state.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    pending[1]!.resolve({ ...response(1, pending[1]!.requestId), status: 'empty' })
+    await vi.advanceTimersByTimeAsync(499)
+    expect(state.status.value).toBe('loading')
+    expect(state.result.value).toBe(previous)
+    expect(pending).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(pending).toHaveLength(3)
+    pending[2]!.resolve(response(1, pending[2]!.requestId))
+    await vi.advanceTimersByTimeAsync(0)
+    await task
+    expect(state.status.value).toBe('ready')
+    expect(state.result.value?.requestId).toBe(pending[2]!.requestId)
   })
 })
