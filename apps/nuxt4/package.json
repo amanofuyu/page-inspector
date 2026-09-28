@@ -1,0 +1,27 @@
+{
+  "name": "@page-inspector/nuxt4",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nuxt 4 数据验证应用",
+  "engines": {
+    "node": "^22.22.1"
+  },
+  "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1 --port 3304",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt prepare && nuxt typecheck",
+    "start": "HOST=127.0.0.1 PORT=3304 NODE_ENV=production node .output/ssr/server/index.mjs"
+  },
+  "dependencies": {
+    "nuxt": "4.5.2",
+    "vue": "3.5.43",
+    "vue-router": "5.3.1"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vue-tsc": "3.3.11"
+  }
+}

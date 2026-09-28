@@ -1,0 +1,10 @@
+sharedWorkspaceLockfile: true
+resolvePeersFromWorkspaceRoot: false
+
+packages:
+  - apps/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - '@parcel/watcher'
+  - unrs-resolver

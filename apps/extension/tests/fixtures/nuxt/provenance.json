@@ -1,0 +1,14 @@
+[
+  {
+    "nuxt": "3.17.5",
+    "devalue": "5.1.1",
+    "reducerSha256": "fa4591528ba330aee5e3a4645d6e9d7ec8c85aa638ebf36fa0d40e1e80b4b747",
+    "payloadSha256": "c56c22454d48bbe3f0aab502cdadb7f3c6bd4a0613b14eaef6af215984900de9"
+  },
+  {
+    "nuxt": "4.0.0",
+    "devalue": "5.1.1",
+    "reducerSha256": "fa4591528ba330aee5e3a4645d6e9d7ec8c85aa638ebf36fa0d40e1e80b4b747",
+    "payloadSha256": "ac1bb00c8f880a73eb1688b17078f7087b527df8f3e2814f35435f54a7ee5cf9"
+  }
+]

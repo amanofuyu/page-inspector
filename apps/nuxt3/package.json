@@ -1,0 +1,27 @@
+{
+  "name": "@page-inspector/nuxt3",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nuxt 3 数据验证应用",
+  "engines": {
+    "node": "^22.22.1"
+  },
+  "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1 --port 3303",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt prepare && nuxt typecheck",
+    "start": "HOST=127.0.0.1 PORT=3303 NODE_ENV=production node .output/ssr/server/index.mjs"
+  },
+  "dependencies": {
+    "nuxt": "3.21.11",
+    "vue": "3.5.43",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vue-tsc": "3.3.11"
+  }
+}
