@@ -4,14 +4,14 @@ import type { FieldPath } from '../inspection/model'
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { QueryCondition, QuerySpec } from '../query/engine'
 import type { SavedQuery, WatchComparison, WatchRule } from '../watch/model'
-import { Download, RefreshCw } from '@lucide/vue'
+import { ChevronDown, ChevronRight, Download, RefreshCw } from '@lucide/vue'
 import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import { useDefinitions } from '@/composables/useDefinitions'
 import { usePayloadWorker } from '@/composables/usePayloadWorker'
 import { analysisReport } from '../analysis/report'
 import { exactPath, formatPath } from '../query/path'
 import { matchesScope, scopeFor, WatchSession } from '../watch/model'
-import DataTreeNode from './DataTreeNode.vue'
+import FieldDetailPanel from './FieldDetailPanel.vue'
 import WatchButton from './WatchButton.vue'
 
 const props = defineProps<{
@@ -37,6 +37,10 @@ const includeQuery = ref(false)
 const analysis = shallowRef<WorkerOperations['analyze']['output'] | null>(null)
 const results = shallowRef<WorkerOperations['query']['output'] | null>(null)
 const detail = shallowRef<FieldDetail | null>(null)
+const detailPath = shallowRef<FieldPath>([])
+const detailLocation = ref<string | null>(null)
+const detailLoading = ref(false)
+const detailError = ref('')
 const comparisons = shallowRef<WatchComparison[]>([])
 const executedSpec = shallowRef<QuerySpec | null>(null)
 const queryName = ref('')
@@ -60,6 +64,16 @@ const rows = computed(() => [...analysis.value?.rows ?? []].sort((a, b) => ranki
 const watchSession = new WatchSession()
 let generation = 0
 let watchRequest = 0
+let detailRequest = 0
+const detailProps = computed(() => ({
+  path: detailPath.value,
+  detail: detail.value,
+  loading: detailLoading.value,
+  error: detailError.value,
+  sourceLabels: detail.value?.sourceIds.map(sourceLabel) ?? [],
+  watchedPaths: watchedPaths.value,
+  pendingWatchPaths: pendingWatchPaths.value,
+}))
 function size(bytes: number | null) {
   return bytes === null ? '未知' : bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1048576).toFixed(2)} MiB`
 }
@@ -78,7 +92,7 @@ async function start() {
   const current = ++generation
   analysis.value = null
   results.value = null
-  detail.value = null
+  closeDetail()
   if (!props.app || props.status !== 'ready') {
     worker.stop('等待成功采集新快照。')
     return
@@ -95,6 +109,8 @@ async function start() {
 async function analyze() {
   if (!ready.value || pending.value)
     return
+  if (detailLocation.value !== null)
+    closeDetail()
   const current = generation
   try {
     const result = await worker.call('analyze', undefined)
@@ -122,22 +138,47 @@ async function query(offset?: number) {
       reportError(failure)
   }
 }
-async function locate(path: FieldPath) {
+function closeDetail() {
+  // 关闭、切换条目或刷新后，已排队的旧详情不能重新展开界面。
+  detailRequest++
+  detail.value = null
+  detailLocation.value = null
+  detailLoading.value = false
+  detailError.value = ''
+}
+async function locate(path: FieldPath, location: string | null = null) {
   if (!ready.value) {
     emit('notice', '索引尚未就绪，请等待或重新建立索引。')
     return
   }
   const current = generation
+  const request = ++detailRequest
+  detailPath.value = path
+  detailLocation.value = location
+  detail.value = null
+  detailError.value = ''
+  detailLoading.value = true
   try {
     const value = await worker.call('detail', JSON.parse(JSON.stringify(path)))
-    if (current === generation)
+    if (current === generation && request === detailRequest)
       detail.value = value
   }
   catch (failure) {
-    if (current === generation)
-      reportError(failure)
+    if (current === generation && request === detailRequest)
+      detailError.value = failure instanceof Error ? failure.message : String(failure)
+  }
+  finally {
+    if (current === generation && request === detailRequest)
+      detailLoading.value = false
   }
 }
+function toggleAnalysisDetail(location: string, path: FieldPath) {
+  if (detailLocation.value === location)
+    closeDetail()
+  else
+    void locate(path, location)
+}
+
 async function changeWatch(path: FieldPath, toggle = false) {
   const selected = scopeFor(props.snapshot, props.app, includeQuery.value)
   if (!selected) {
@@ -264,7 +305,9 @@ watch(snapshotKey, () => {
 watch(watches, () => {
   void updateWatches()
 })
-watch(() => props.active, (value) => {
+watch(() => props.active, (value, previous) => {
+  if (value === 'analysis' || previous === 'analysis')
+    closeDetail()
   if (value === 'data' && sourceMode.value !== null)
     sourceMode.value = null
   if (value === 'analysis' && !analysis.value)
@@ -328,21 +371,31 @@ defineExpose({ toggleWatch, locate })
             </div>
             <ol class="ranking-list">
               <li v-for="row in rows" :key="row.nodeId">
-                <button class="ranking-row" @click="locate(row.fieldPath)">
-                  <span class="mono break-text">{{ row.path }}</span><span>{{ row.type }} · {{ row.itemCount ?? '—' }} 项 · {{ row.complete ? '' : '≥ ' }}{{ size(row.estimatedBytes) }}<small v-if="row.references"> · {{ row.references }} 个引用</small></span><span class="ranking-track"><i :style="{ width: `${Math.max(1, row.estimatedBytes / Math.max(1, analysis.rows[0]?.estimatedBytes ?? 1) * 100)}%` }" /></span>
+                <button class="ranking-row" :aria-expanded="detailLocation === `ranking-${row.nodeId}`" :aria-controls="detailLocation === `ranking-${row.nodeId}` ? `analysis-detail-ranking-${row.nodeId}` : undefined" @click="toggleAnalysisDetail(`ranking-${row.nodeId}`, row.fieldPath)">
+                  <span class="analysis-item-label"><component :is="detailLocation === `ranking-${row.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span class="mono break-text">{{ row.path }}</span></span><span>{{ row.type }} · {{ row.itemCount ?? '—' }} 项 · {{ row.complete ? '' : '≥ ' }}{{ size(row.estimatedBytes) }}<small v-if="row.references"> · {{ row.references }} 个引用</small></span><span class="ranking-track"><i :style="{ width: `${Math.max(1, row.estimatedBytes / Math.max(1, analysis.rows[0]?.estimatedBytes ?? 1) * 100)}%` }" /></span>
                 </button><WatchButton :path="row.fieldPath" :watched="watchedPaths.has(formatPath(row.fieldPath))" :busy="pendingWatchPaths.has(formatPath(row.fieldPath))" @toggle="toggleWatch" />
+                <FieldDetailPanel v-if="detailLocation === `ranking-${row.nodeId}`" :id="`analysis-detail-ranking-${row.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
               </li>
             </ol>
             <details class="distribution">
               <summary>内容分布 · {{ analysis.distribution.sharedEdges }} 条共享引用边</summary><p class="feature-caption">
                 共享引用已节省重复序列化成本，不直接等同于应删除的数据。
-              </p><h3>长字符串</h3><button v-for="item in analysis.distribution.strings" :key="item.nodeId" class="distribution-row" @click="locate(item.fieldPath)">
-                {{ item.path }} · {{ item.length }} 字符
-              </button><h3>大集合</h3><button v-for="item in analysis.distribution.collections" :key="item.nodeId" class="distribution-row" @click="locate(item.fieldPath)">
-                {{ item.path }} · {{ item.itemCount }} 项
-              </button><h3>深层结构</h3><button v-for="item in analysis.distribution.deep" :key="item.nodeId" class="distribution-row" @click="locate(item.fieldPath)">
-                {{ item.path }} · {{ item.fieldPath.length }} 层
-              </button>
+              </p><h3>长字符串</h3><div v-for="item in analysis.distribution.strings" :key="item.nodeId" class="distribution-item">
+                <button class="distribution-row" :aria-expanded="detailLocation === `strings-${item.nodeId}`" :aria-controls="detailLocation === `strings-${item.nodeId}` ? `analysis-detail-strings-${item.nodeId}` : undefined" @click="toggleAnalysisDetail(`strings-${item.nodeId}`, item.fieldPath)">
+                  <component :is="detailLocation === `strings-${item.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.length }} 字符</span>
+                </button>
+                <FieldDetailPanel v-if="detailLocation === `strings-${item.nodeId}`" :id="`analysis-detail-strings-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+              </div><h3>大集合</h3><div v-for="item in analysis.distribution.collections" :key="item.nodeId" class="distribution-item">
+                <button class="distribution-row" :aria-expanded="detailLocation === `collections-${item.nodeId}`" :aria-controls="detailLocation === `collections-${item.nodeId}` ? `analysis-detail-collections-${item.nodeId}` : undefined" @click="toggleAnalysisDetail(`collections-${item.nodeId}`, item.fieldPath)">
+                  <component :is="detailLocation === `collections-${item.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.itemCount }} 项</span>
+                </button>
+                <FieldDetailPanel v-if="detailLocation === `collections-${item.nodeId}`" :id="`analysis-detail-collections-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+              </div><h3>深层结构</h3><div v-for="item in analysis.distribution.deep" :key="item.nodeId" class="distribution-item">
+                <button class="distribution-row" :aria-expanded="detailLocation === `deep-${item.nodeId}`" :aria-controls="detailLocation === `deep-${item.nodeId}` ? `analysis-detail-deep-${item.nodeId}` : undefined" @click="toggleAnalysisDetail(`deep-${item.nodeId}`, item.fieldPath)">
+                  <component :is="detailLocation === `deep-${item.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.fieldPath.length }} 层</span>
+                </button>
+                <FieldDetailPanel v-if="detailLocation === `deep-${item.nodeId}`" :id="`analysis-detail-deep-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+              </div>
             </details>
           </template>
         </template>
@@ -478,21 +531,7 @@ defineExpose({ toggleWatch, locate })
           </details>
         </template>
       </div>
-      <aside v-if="detail" class="field-detail" aria-label="字段详情">
-        <div class="feature-heading">
-          <h3>字段详情</h3><button class="btn btn-xs btn-ghost" @click="detail = null">
-            关闭
-          </button>
-        </div><p class="mono break-text">
-          {{ formatPath(detail.path) }}
-        </p><p class="feature-caption">
-          {{ detail.sourceIds.length > 1 ? '同名顶层字段曾被覆盖，最后一份为当前来源：' : '字段来源：' }}{{ detail.sourceIds.map(sourceLabel).join(' → ') }}
-        </p><WatchButton :path="detail.path" :watched="watchedPaths.has(formatPath(detail.path))" :busy="pendingWatchPaths.has(formatPath(detail.path))" label="关注此字段" @toggle="toggleWatch" /><DataTreeNode v-if="detail.tree" :key="formatPath(detail.path)" :node="detail.tree.root" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" initial-open @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" /><p v-else class="feature-caption">
-          {{ detail.known ? '字段不存在。' : '索引未覆盖此路径，无法确认。' }}
-        </p><p v-if="detail.tree?.truncated" class="feature-caption">
-          局部视图达到 10,000 节点／60 层限制。
-        </p>
-      </aside>
+      <FieldDetailPanel v-if="detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" />
     </div>
   </section>
 </template>

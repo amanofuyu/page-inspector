@@ -37,22 +37,78 @@ test('独立索引查询、局部子树、关注刷新与规则持久化', async
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('分析来源、排名定位、无业务值报告和取消后重建', async ({ extension }, testInfo) => {
+test('分析来源、条目就地展开、无业务值报告和取消后重建', async ({ extension }, testInfo) => {
   const { panel, website, downloads } = extension
   await website.goto(`${base}/features?version=1`)
   await expect.poll(() => panel.text()).toContain('feature-lab')
   await clickText(panel, '分析', '.workspace-tabs')
   await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
-  await panel.click('.ranking-row')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.field-detail')?.textContent)).toContain('字段详情')
+  const first = '.ranking-list > li:first-child'
+  const second = '.ranking-list > li:nth-child(2)'
+  const detailReady = (scope: string) => panel.evaluate(scope => document.querySelector(`${scope} > .field-detail`)?.getAttribute('aria-busy'), scope)
+  await panel.click(`${first} > .ranking-row`)
+  await expect.poll(() => detailReady(first)).toBe('false')
+  expect(await panel.evaluate(() => document.querySelector('.feature-columns > .field-detail'))).toBeNull()
+  expect(await panel.evaluate(() => {
+    const button = document.querySelector('.ranking-row')!
+    return document.getElementById(button.getAttribute('aria-controls')!) === button.parentElement!.querySelector('.field-detail')
+  })).toBe(true)
+  await panel.click(`${first} > .ranking-row`)
+  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(0)
+
+  // 连续点击不同条目时只展开最后一个，收起后迟到的详情也不能重新出现。
+  await panel.evaluate(() => {
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.ranking-row')
+    buttons[0]!.click()
+    buttons[1]!.click()
+  })
+  await expect.poll(() => detailReady(second)).toBe('false')
+  expect(await panel.evaluate(() => {
+    const row = document.querySelector('.ranking-list > li:nth-child(2)')!
+    return row.querySelector('.field-detail > .mono')?.textContent?.trim() === row.querySelector('.ranking-row .mono')?.textContent?.trim()
+  })).toBe(true)
+  await panel.evaluate(() => {
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.ranking-row')
+    buttons[0]!.click()
+    buttons[0]!.click()
+  })
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[aria-label="扩展工作区"] > [role="status"]')?.textContent)).toContain('索引')
+  expect(await panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(0)
+  await panel.click(`${first} > .ranking-row`)
+  await expect.poll(() => detailReady(first)).toBe('false')
+  await panel.click(`${first} > .watch-button`)
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.ranking-list > li > .watch-button')?.getAttribute('aria-pressed'))).toBe('true')
+  expect(await panel.evaluate(() => document.querySelector('.ranking-row')?.getAttribute('aria-expanded'))).toBe('true')
   await clickText(panel, '导出分析报告')
   await expect.poll(async () => (await readdir(downloads)).filter(name => name.endsWith('.json')).length).toBe(1)
   const report = JSON.parse(await readFile(path.join(downloads, (await readdir(downloads))[0]!), 'utf8'))
   expect(report.format).toBe('page-inspector-analysis/v1')
   expect(report.fields.every((field: Record<string, unknown>) => !('preview' in field))).toBe(true)
   expect(report.sources[0].rawUtf8Bytes).toBeLessThan(report.sources[0].messageBytes)
+  await panel.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 780, deviceScaleFactor: 1, mobile: false })
+  expect(await panel.evaluate(() => {
+    const row = document.querySelector('.ranking-list > li')!
+    const button = row.querySelector('.ranking-row')!.getBoundingClientRect()
+    const detail = row.querySelector('.field-detail')!.getBoundingClientRect()
+    const next = row.nextElementSibling!.getBoundingClientRect()
+    return detail.top >= button.bottom && detail.bottom <= next.top && document.documentElement.scrollWidth <= window.innerWidth
+  })).toBe(true)
+  await panel.evaluate(() => document.querySelector('.ranking-list')!.scrollIntoView({ block: 'start' }))
+  await panel.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
   const image = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
-  await writeFile(testInfo.outputPath('feature-analysis.png'), Buffer.from(image.data, 'base64'))
+  await writeFile(testInfo.outputPath('feature-analysis-inline.png'), Buffer.from(image.data, 'base64'))
+  await clickText(panel, '关闭', `${first} > .field-detail`)
+  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(0)
+  await panel.send('Emulation.clearDeviceMetricsOverride')
+  await panel.click('.distribution > summary')
+  for (const index of [1, 2, 3]) {
+    const item = `.distribution > h3:nth-of-type(${index}) + .distribution-item`
+    await panel.click(`${item} > .distribution-row`)
+    await expect.poll(() => detailReady(item)).toBe('false')
+    expect(await panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(1)
+    await panel.click(`${item} > .distribution-row`)
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(0)
+  }
   await clickText(panel, '重建索引')
   await panel.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === '取消任务')?.click())
   await expect.poll(() => panel.text()).toContain('任务已取消')

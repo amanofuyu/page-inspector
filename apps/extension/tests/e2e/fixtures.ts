@@ -56,7 +56,7 @@ export class SidePanel {
   }
 
   text() {
-    return this.evaluate(() => document.body.textContent ?? '')
+    return this.evaluate(() => document.body?.textContent ?? '')
   }
 
   async click(selector: string) {

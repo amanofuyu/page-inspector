@@ -1110,8 +1110,9 @@ summary {
   padding: 0;
   list-style: none;
 }
-.ranking-list li {
-  display: flex;
+.ranking-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px;
   border-top: 1px solid var(--inspector-line);
@@ -1125,6 +1126,20 @@ summary {
   text-align: left;
   cursor: pointer;
   font-size: var(--font-size-xs);
+}
+.analysis-item-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.analysis-item-label svg,
+.distribution-row > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ranking-row[aria-expanded='true'],
+.distribution-row[aria-expanded='true'] {
+  color: var(--inspector-emphasis);
 }
 .ranking-track {
   height: 3px;
@@ -1146,7 +1161,10 @@ summary {
   margin-top: 12px;
 }
 .distribution-row {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
   text-align: left;
   padding-block: 6px;
   overflow-wrap: anywhere;
@@ -1222,18 +1240,27 @@ summary {
   min-width: 0;
   overflow: auto;
 }
+.inline-field-detail {
+  grid-column: 1 / -1;
+  max-height: min(65vh, 640px);
+  margin: 0 0 10px;
+  padding: 12px;
+  border: 1px solid var(--inspector-line);
+  border-radius: 8px;
+  background: var(--glass-surface);
+}
 @media (width >= 850px) {
   .devtools-shell {
     max-width: 1440px;
     margin-inline: auto;
   }
-  .devtools-shell .feature-columns:has(.field-detail) {
+  .devtools-shell .feature-columns:has(> .field-detail) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
     gap: 16px;
     align-items: start;
   }
-  .devtools-shell .field-detail {
+  .devtools-shell .feature-columns > .field-detail {
     position: sticky;
     top: 12px;
     max-height: 85vh;
