@@ -2,6 +2,7 @@
 import type { FieldPath } from '../inspection/model'
 import { Star } from '@lucide/vue'
 import { formatPath } from '../query/path'
+import { vResizeMotion } from './motion'
 
 defineProps<{
   path: FieldPath
@@ -14,7 +15,7 @@ const emit = defineEmits<{ toggle: [path: FieldPath] }>()
 </script>
 
 <template>
-  <button class="btn btn-ghost btn-xs watch-button" :class="{ 'is-watched': watched }" :aria-pressed="watched" :aria-busy="busy || undefined" :disabled="busy" :aria-label="`${watched ? '取消关注字段' : '关注字段'} ${formatPath(path)}`" :title="watched ? '已关注，点击取消关注' : '关注字段'" @click="emit('toggle', path)">
+  <button v-resize-motion.inline="iconOnly ? null : busy ? 'busy' : watched" class="btn btn-ghost btn-xs watch-button" :class="{ 'is-watched': watched }" :aria-pressed="watched" :aria-busy="busy || undefined" :disabled="busy" :aria-label="`${watched ? '取消关注字段' : '关注字段'} ${formatPath(path)}`" :title="watched ? '已关注，点击取消关注' : '关注字段'" @click="emit('toggle', path)">
     <Star :size="12" :fill="watched ? 'currentColor' : 'none'" aria-hidden="true" /><span v-if="!iconOnly">{{ busy ? '处理中…' : watched ? '已关注' : label || '关注' }}</span>
   </button>
 </template>

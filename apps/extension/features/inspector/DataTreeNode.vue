@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { FieldPath } from '@/features/inspection/model'
 import type { DataNode } from '@/features/nuxt/format'
-import { ChevronDown, ChevronRight, Copy, Info, Link } from '@lucide/vue'
+import { ChevronRight, Copy, Info, Link } from '@lucide/vue'
 import { ref } from 'vue'
 import { exportNode } from '@/features/nuxt/format'
 import { formatPath } from '@/features/query/path'
+import ExpandTransition from './ExpandTransition.vue'
 import WatchButton from './WatchButton.vue'
 
 const props = defineProps<{
@@ -52,8 +53,7 @@ async function copy(pathOnly: boolean) {
         @click="toggle"
       >
         <span class="tree-indicator" aria-hidden="true">
-          <ChevronDown v-if="node.children && expanded" :size="14" />
-          <ChevronRight v-else-if="node.children" :size="14" />
+          <ChevronRight v-if="node.children" class="disclosure-chevron" :size="14" />
           <span v-else>·</span>
         </span>
         <span class="tree-content">
@@ -70,18 +70,20 @@ async function copy(pathOnly: boolean) {
         <button class="btn btn-ghost btn-xs" title="复制带类型的数据" :aria-label="`复制带类型的数据 ${node.path}`" @click="copy(false)"><Copy :size="12" aria-hidden="true" /></button>
       </span>
     </div>
-    <div v-if="expanded && node.children" class="tree-children">
-      <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" />
-      <button v-if="node.children.length > limit" class="btn btn-ghost btn-xs my-1" @click="limit += 100">
-        再显示 100 项（剩余 {{ node.children.length - limit }} 项）
-      </button>
-      <p v-if="!node.children.length && !node.truncated" class="tree-hint">
-        空集合
-      </p>
-      <p v-if="node.truncated" class="tree-limit-hint">
-        <Info :size="14" aria-hidden="true" />
-        <span>已达到展示上限，完整已采集内容请导出原文。</span>
-      </p>
-    </div>
+    <ExpandTransition>
+      <div v-if="expanded && node.children" class="tree-children">
+        <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" />
+        <button v-if="node.children.length > limit" class="btn btn-ghost btn-xs my-1" @click="limit += 100">
+          再显示 100 项（剩余 {{ node.children.length - limit }} 项）
+        </button>
+        <p v-if="!node.children.length && !node.truncated" class="tree-hint">
+          空集合
+        </p>
+        <p v-if="node.truncated" class="tree-limit-hint">
+          <Info :size="14" aria-hidden="true" />
+          <span>已达到展示上限，完整已采集内容请导出原文。</span>
+        </p>
+      </div>
+    </ExpandTransition>
   </div>
 </template>

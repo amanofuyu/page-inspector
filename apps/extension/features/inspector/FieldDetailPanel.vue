@@ -3,6 +3,7 @@ import type { FieldDetail } from '../../workers/protocol'
 import type { FieldPath } from '../inspection/model'
 import { formatPath } from '../query/path'
 import DataTreeNode from './DataTreeNode.vue'
+import { vResizeMotion } from './motion'
 import WatchButton from './WatchButton.vue'
 
 defineProps<{
@@ -23,7 +24,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <aside class="field-detail" aria-label="字段详情" :aria-busy="loading">
+  <aside v-resize-motion="loading" class="field-detail" aria-label="字段详情" :aria-busy="loading">
     <div class="feature-heading">
       <h3>字段详情</h3><button class="btn btn-xs btn-ghost" @click="emit('close')">
         关闭

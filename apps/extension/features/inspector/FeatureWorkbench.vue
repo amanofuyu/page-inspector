@@ -4,14 +4,16 @@ import type { FieldPath } from '../inspection/model'
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { QueryCondition, QuerySpec } from '../query/engine'
 import type { SavedQuery, WatchComparison, WatchRule } from '../watch/model'
-import { ChevronDown, ChevronRight, Download, RefreshCw } from '@lucide/vue'
+import { ChevronRight, Download, RefreshCw } from '@lucide/vue'
 import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import { useDefinitions } from '@/composables/useDefinitions'
 import { usePayloadWorker } from '@/composables/usePayloadWorker'
 import { analysisReport } from '../analysis/report'
 import { exactPath, formatPath } from '../query/path'
 import { matchesScope, scopeFor, WatchSession } from '../watch/model'
+import ExpandTransition from './ExpandTransition.vue'
 import FieldDetailPanel from './FieldDetailPanel.vue'
+import { vResizeMotion } from './motion'
 import WatchButton from './WatchButton.vue'
 
 const props = defineProps<{
@@ -353,7 +355,7 @@ defineExpose({ toggleWatch, locate })
       {{ storageNotice }}
     </p>
     <div class="feature-columns">
-      <div class="feature-primary">
+      <div v-resize-motion="`${active}:${spec.conditions.length}:${results?.total}:${results?.offset}:${watches.length}`" class="feature-primary">
         <slot v-if="active === 'data'" name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" />
         <template v-if="active === 'analysis'">
           <div class="feature-heading">
@@ -391,9 +393,11 @@ defineExpose({ toggleWatch, locate })
             <ol class="ranking-list">
               <li v-for="row in rows" :key="row.nodeId">
                 <button class="ranking-row" :aria-expanded="detailLocation === `ranking-${row.nodeId}`" :aria-controls="detailLocation === `ranking-${row.nodeId}` ? `analysis-detail-ranking-${row.nodeId}` : undefined" @click="toggleInlineDetail(`ranking-${row.nodeId}`, row.fieldPath)">
-                  <span class="analysis-item-label"><component :is="detailLocation === `ranking-${row.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span class="mono break-text">{{ row.path }}</span></span><span>{{ row.type }} · {{ row.itemCount ?? '—' }} 项 · {{ row.complete ? '' : '≥ ' }}{{ size(row.estimatedBytes) }}<small v-if="row.references"> · {{ row.references }} 个引用</small></span><span class="ranking-track"><i :style="{ width: `${Math.max(1, row.estimatedBytes / Math.max(1, analysis.rows[0]?.estimatedBytes ?? 1) * 100)}%` }" /></span>
+                  <span class="analysis-item-label"><ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span class="mono break-text">{{ row.path }}</span></span><span>{{ row.type }} · {{ row.itemCount ?? '—' }} 项 · {{ row.complete ? '' : '≥ ' }}{{ size(row.estimatedBytes) }}<small v-if="row.references"> · {{ row.references }} 个引用</small></span><span class="ranking-track"><i :style="{ width: `${Math.max(1, row.estimatedBytes / Math.max(1, analysis.rows[0]?.estimatedBytes ?? 1) * 100)}%` }" /></span>
                 </button><WatchButton :path="row.fieldPath" :watched="watchedPaths.has(formatPath(row.fieldPath))" :busy="pendingWatchPaths.has(formatPath(row.fieldPath))" @toggle="toggleWatch" />
-                <FieldDetailPanel v-if="detailLocation === `ranking-${row.nodeId}`" :id="`analysis-detail-ranking-${row.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                <ExpandTransition>
+                  <FieldDetailPanel v-if="detailLocation === `ranking-${row.nodeId}`" :id="`analysis-detail-ranking-${row.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                </ExpandTransition>
               </li>
             </ol>
             <details class="distribution">
@@ -401,19 +405,25 @@ defineExpose({ toggleWatch, locate })
                 共享引用已节省重复序列化成本，不直接等同于应删除的数据。
               </p><h3>长字符串</h3><div v-for="item in analysis.distribution.strings" :key="item.nodeId" class="distribution-item">
                 <button class="distribution-row" :aria-expanded="detailLocation === `strings-${item.nodeId}`" :aria-controls="detailLocation === `strings-${item.nodeId}` ? `analysis-detail-strings-${item.nodeId}` : undefined" @click="toggleInlineDetail(`strings-${item.nodeId}`, item.fieldPath)">
-                  <component :is="detailLocation === `strings-${item.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.length }} 字符</span>
+                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.length }} 字符</span>
                 </button>
-                <FieldDetailPanel v-if="detailLocation === `strings-${item.nodeId}`" :id="`analysis-detail-strings-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                <ExpandTransition>
+                  <FieldDetailPanel v-if="detailLocation === `strings-${item.nodeId}`" :id="`analysis-detail-strings-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                </ExpandTransition>
               </div><h3>大集合</h3><div v-for="item in analysis.distribution.collections" :key="item.nodeId" class="distribution-item">
                 <button class="distribution-row" :aria-expanded="detailLocation === `collections-${item.nodeId}`" :aria-controls="detailLocation === `collections-${item.nodeId}` ? `analysis-detail-collections-${item.nodeId}` : undefined" @click="toggleInlineDetail(`collections-${item.nodeId}`, item.fieldPath)">
-                  <component :is="detailLocation === `collections-${item.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.itemCount }} 项</span>
+                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.itemCount }} 项</span>
                 </button>
-                <FieldDetailPanel v-if="detailLocation === `collections-${item.nodeId}`" :id="`analysis-detail-collections-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                <ExpandTransition>
+                  <FieldDetailPanel v-if="detailLocation === `collections-${item.nodeId}`" :id="`analysis-detail-collections-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                </ExpandTransition>
               </div><h3>深层结构</h3><div v-for="item in analysis.distribution.deep" :key="item.nodeId" class="distribution-item">
                 <button class="distribution-row" :aria-expanded="detailLocation === `deep-${item.nodeId}`" :aria-controls="detailLocation === `deep-${item.nodeId}` ? `analysis-detail-deep-${item.nodeId}` : undefined" @click="toggleInlineDetail(`deep-${item.nodeId}`, item.fieldPath)">
-                  <component :is="detailLocation === `deep-${item.nodeId}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.fieldPath.length }} 层</span>
+                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.fieldPath.length }} 层</span>
                 </button>
-                <FieldDetailPanel v-if="detailLocation === `deep-${item.nodeId}`" :id="`analysis-detail-deep-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                <ExpandTransition>
+                  <FieldDetailPanel v-if="detailLocation === `deep-${item.nodeId}`" :id="`analysis-detail-deep-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+                </ExpandTransition>
               </div>
             </details>
           </template>
@@ -491,7 +501,7 @@ defineExpose({ toggleWatch, locate })
             </div>
             <article v-for="(match, index) in results.matches" :key="match.path" class="query-result">
               <button class="path-button query-path-button mono" :aria-expanded="detailLocation === `query-${index}`" :aria-controls="detailLocation === `query-${index}` ? `query-detail-${index}` : undefined" @click="toggleInlineDetail(`query-${index}`, match.fieldPath)">
-                <component :is="detailLocation === `query-${index}` ? ChevronDown : ChevronRight" :size="14" aria-hidden="true" /><span>{{ match.path }}</span>
+                <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ match.path }}</span>
               </button><p>{{ match.type }} · {{ match.preview }}</p><p class="feature-caption">
                 {{ sourceLabel(match.sourceId) }} · {{ match.reasons.join('；') }}
               </p><div class="feature-toolbar">
@@ -499,7 +509,9 @@ defineExpose({ toggleWatch, locate })
                   复制摘要
                 </button><WatchButton :path="match.fieldPath" :watched="watchedPaths.has(formatPath(match.fieldPath))" :busy="pendingWatchPaths.has(formatPath(match.fieldPath))" @toggle="toggleWatch" />
               </div>
-              <FieldDetailPanel v-if="detailLocation === `query-${index}`" :id="`query-detail-${index}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+              <ExpandTransition>
+                <FieldDetailPanel v-if="detailLocation === `query-${index}`" :id="`query-detail-${index}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
+              </ExpandTransition>
             </article>
             <div class="feature-toolbar">
               <button class="btn btn-sm btn-ghost" :disabled="results.offset === 0 || !!pending" @click="query(results.offset - 50)">
@@ -554,7 +566,9 @@ defineExpose({ toggleWatch, locate })
           </details>
         </template>
       </div>
-      <FieldDetailPanel v-if="detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" />
+      <ExpandTransition>
+        <FieldDetailPanel v-if="detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" />
+      </ExpandTransition>
     </div>
   </section>
 </template>

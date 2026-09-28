@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     InspectorDataTreeNode: typeof import('./features/inspector/DataTreeNode.vue')['default']
+    InspectorExpandTransition: typeof import('./features/inspector/ExpandTransition.vue')['default']
     InspectorFeatureWorkbench: typeof import('./features/inspector/FeatureWorkbench.vue')['default']
     InspectorFieldDetailPanel: typeof import('./features/inspector/FieldDetailPanel.vue')['default']
     InspectorInspectorView: typeof import('./features/inspector/InspectorView.vue')['default']

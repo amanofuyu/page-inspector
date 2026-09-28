@@ -100,6 +100,10 @@
 }
 :root {
   /* 全部文字使用偶数字号，辅助信息和紧凑控件也不低于 12px。 */
+  --motion-fast: 140ms;
+  --motion-feedback: 180ms;
+  --motion-resize: 240ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-md: 16px;
@@ -226,10 +230,10 @@ summary {
   white-space: nowrap;
   box-shadow: none;
   transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease,
-    color 150ms ease;
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out,
+    box-shadow var(--motion-fast) ease-out,
+    color var(--motion-fast) ease-out;
 }
 .inspector-shell .btn-xs {
   min-height: 28px;
@@ -525,9 +529,9 @@ summary {
   color: var(--inspector-muted);
   white-space: nowrap;
   transition:
-    color 150ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease;
+    color var(--motion-fast) ease-out,
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
 }
 .view-tabs button:hover {
   color: var(--color-base-content);
@@ -1276,6 +1280,14 @@ summary {
     max-width: 1440px;
     margin-inline: auto;
   }
+  .devtools-shell .feature-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+    column-gap: 0;
+    transition:
+      grid-template-columns var(--motion-resize) var(--motion-ease),
+      column-gap var(--motion-resize) var(--motion-ease);
+  }
   .devtools-shell .feature-columns:has(> .field-detail) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
@@ -1371,4 +1383,150 @@ summary {
   border-radius: 10px;
   background: var(--glass-surface);
   backdrop-filter: blur(18px) saturate(135%);
+}
+
+/* 控件只改变表面与图标，悬停时保持点击区域及相邻排版稳定。 */
+.inspector-shell
+  :is(
+    .btn,
+    .view-tabs button,
+    .workspace-tabs button,
+    .tree-toggle,
+    .ranking-row,
+    .distribution-row,
+    .path-button,
+    .request-row,
+    summary,
+    .select,
+    .input,
+    .search-input
+  ) {
+  transition:
+    color var(--motion-fast) ease-out,
+    background-color var(--motion-feedback) ease-out,
+    border-color var(--motion-feedback) ease-out,
+    box-shadow var(--motion-feedback) ease-out,
+    opacity var(--motion-fast) ease-out;
+}
+.inspector-shell :is(.ranking-row, .distribution-row, .path-button, summary) {
+  border-radius: 6px;
+}
+.tree-row,
+.tree-actions,
+.capture-status,
+.status-dot {
+  transition:
+    color var(--motion-fast) ease-out,
+    background-color var(--motion-feedback) ease-out,
+    box-shadow var(--motion-feedback) ease-out;
+}
+.inspector-shell .btn > svg {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.inspector-shell .btn:active:not(:disabled) > svg {
+  transform: scale(0.88);
+}
+.inspector-shell
+  :is(
+    .workspace-tabs button,
+    .view-tabs button,
+    .tree-toggle,
+    .ranking-row,
+    .distribution-row,
+    .path-button,
+    .request-row
+  ):active:not(:disabled) {
+  background-color: var(--tab-active);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 10%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .inspector-shell :is(.workspace-tabs button, .view-tabs button):hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--inspector-emphasis) 8%, var(--control-surface));
+  }
+  .inspector-shell :is(.ranking-row, .distribution-row, .path-button, .request-row, summary):hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--inspector-emphasis) 6%, transparent);
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--inspector-emphasis) 45%, transparent);
+  }
+  .inspector-shell :is(.select, .input, .search-input):hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--inspector-emphasis) 40%, var(--inspector-line));
+  }
+}
+.inspector-shell :is(.input, .select):focus-visible,
+.search-input:focus-within {
+  border-color: var(--inspector-emphasis);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--inspector-emphasis) 10%, transparent);
+}
+.disclosure-chevron {
+  transform: rotate(0);
+  transition: transform var(--motion-feedback) var(--motion-ease);
+}
+[aria-expanded='true'] > .disclosure-chevron,
+[aria-expanded='true'] > .tree-indicator > .disclosure-chevron,
+[aria-expanded='true'] > .analysis-item-label > .disclosure-chevron {
+  transform: rotate(90deg);
+}
+.ranking-track i {
+  transition: width var(--motion-resize) var(--motion-ease);
+}
+/* Vue 负责挂载与离场，较旧浏览器保留淡入淡出并立即完成尺寸变更。 */
+.expand-enter-active,
+.expand-leave-active {
+  transition: opacity var(--motion-feedback) ease-out;
+}
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+}
+.expand-leave-active {
+  pointer-events: none;
+}
+@supports (interpolate-size: allow-keywords) {
+  .expand-enter-active,
+  .expand-leave-active {
+    interpolate-size: allow-keywords;
+    height: auto;
+    overflow: clip;
+    min-height: 0;
+    transition:
+      height var(--motion-resize) var(--motion-ease),
+      opacity var(--motion-feedback) ease-out,
+      padding-block var(--motion-resize) var(--motion-ease),
+      margin-block var(--motion-resize) var(--motion-ease),
+      border-block-width var(--motion-resize) var(--motion-ease);
+  }
+  .expand-enter-from,
+  .expand-leave-to {
+    height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    border-block-width: 0;
+  }
+  /* 保留原生 details 的键盘与语义，同时平滑展开来源、分布和响应比较。 */
+  @supports selector(details::details-content) {
+    .inspector-shell details::details-content {
+      interpolate-size: allow-keywords;
+      block-size: 0;
+      overflow: clip;
+      opacity: 0;
+      transition:
+        block-size var(--motion-resize) var(--motion-ease),
+        opacity var(--motion-feedback) ease-out,
+        content-visibility var(--motion-resize) allow-discrete;
+    }
+    .inspector-shell details[open]::details-content {
+      block-size: auto;
+      opacity: 1;
+    }
+  }
+}
+
+.inspector-shell .source-details summary {
+  transition:
+    color var(--motion-fast) ease-out,
+    background-color var(--motion-feedback) ease-out,
+    box-shadow var(--motion-feedback) ease-out,
+    margin-bottom var(--motion-resize) var(--motion-ease);
+}
+.capture-status {
+  white-space: nowrap;
 }

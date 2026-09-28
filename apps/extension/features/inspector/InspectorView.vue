@@ -11,7 +11,9 @@ import { buildPayloadView, exportNode, searchTree } from '@/features/nuxt/format
 import { parseApp } from '@/features/nuxt/parse'
 import { unwrap } from '@/features/nuxt/types'
 import NetworkView from '../network/NetworkView.vue'
+import ExpandTransition from './ExpandTransition.vue'
 import FeatureWorkbench from './FeatureWorkbench.vue'
+import { vResizeMotion } from './motion'
 
 const props = defineProps<{
   targetTabId?: number
@@ -155,7 +157,7 @@ watch(view, () => {
       <section class="page-card glass-card" aria-label="当前页面">
         <div class="section-heading">
           <span class="eyebrow">当前页面</span>
-          <span class="capture-status" :data-status="responseOverride ? status : pageStatus" role="status">
+          <span v-resize-motion.inline="statusLabel" class="capture-status" :data-status="responseOverride ? status : pageStatus" role="status">
             <span class="status-dot" aria-hidden="true" />{{ statusLabel }}
           </span>
         </div>
@@ -236,7 +238,7 @@ watch(view, () => {
       <NetworkView v-if="devtools" :active="activeFeature === 'network'" :snapshot="result?.snapshot" :app="result?.snapshot?.apps[appIndex]" :document-id="result?.documentId" :tab-id="targetTabId" @notice="notice = $event" @inspect="inspectResponse" />
       <FeatureWorkbench ref="workbench" :aria-busy="pageStatus === 'loading' && !responseOverride" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" @notice="notice = $event" @activate="activeFeature = $event">
         <template #data="{ watchedPaths, pendingWatchPaths }">
-          <section v-if="application && parsed" v-show="activeFeature === 'data'" class="data-card glass-card" aria-label="Payload 数据">
+          <section v-if="application && parsed" v-show="activeFeature === 'data'" v-resize-motion="`${view}:${!!search.trim()}`" class="data-card glass-card" aria-label="Payload 数据">
             <div class="data-heading">
               <div class="data-intro">
                 <span class="eyebrow">PAYLOAD</span>
@@ -317,9 +319,11 @@ watch(view, () => {
           </section>
         </template>
       </FeatureWorkbench>
-      <p v-if="notice" class="notice" role="status">
-        {{ notice }}
-      </p>
+      <ExpandTransition>
+        <p v-if="notice" class="notice" role="status">
+          {{ notice }}
+        </p>
+      </ExpandTransition>
     </main>
     <footer class="app-footer">
       <span>NUXT 3 / 4</span>
