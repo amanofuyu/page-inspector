@@ -1,0 +1,107 @@
+name: 发布扩展
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: 构建并发布生产扩展
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: 检出版本标签
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 固定 v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 设置项目 Node 版本
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # 固定 v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 核对标签与项目版本
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+
+          const tag = process.env.GITHUB_REF_NAME
+          assert.match(tag, /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/, '发布标签必须使用 v主版本.次版本.修订版本，不支持预发布后缀')
+          for (const file of ['package.json', 'apps/extension/package.json']) {
+            const { version } = JSON.parse(readFileSync(file, 'utf8'))
+            assert.equal(`v${version}`, tag, `${file} 的版本必须与发布标签一致`)
+          }
+          NODE
+
+      - name: 安装项目固定的 pnpm
+        run: npm install --global "$(node --print 'require("./package.json").packageManager')"
+
+      - name: 按锁文件安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 检查代码规范
+        run: pnpm lint
+
+      - name: 检查类型
+        run: pnpm typecheck
+
+      - name: 运行单元测试
+        run: pnpm test
+
+      - name: 构建生产压缩包
+        run: pnpm zip
+
+      - name: 检查压缩包并生成校验文件
+        run: |
+          python3 <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          from zipfile import ZipFile
+
+          archives = list(Path('apps/extension/.output').glob('*-chrome-prod.zip'))
+          assert len(archives) == 1, '必须且只能生成一个 Chrome 生产压缩包'
+          version = os.environ['GITHUB_REF_NAME'][1:]
+          with ZipFile(archives[0]) as archive:
+              assert archive.testzip() is None, '压缩包完整性检查失败'
+              manifest = json.loads(archive.read('manifest.json'))
+          assert manifest['version'] == version, '压缩包内的扩展版本必须与标签一致'
+          assert manifest['manifest_version'] == 3, '发布产物必须是 Manifest V3 扩展'
+          output = Path('.artifacts/release')
+          output.mkdir(parents=True, exist_ok=True)
+          artifact = output / f'page-inspector-{version}-chrome.zip'
+          shutil.copyfile(archives[0], artifact)
+          digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+          (output / 'SHA256SUMS.txt').write_text(f'{digest}  {artifact.name}\n', encoding='utf-8')
+          print(f'已校验发布产物：{artifact}')
+          PY
+
+      - name: 创建 Release 并上传附件
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            ".artifacts/release/page-inspector-${GITHUB_REF_NAME#v}-chrome.zip" \
+            .artifacts/release/SHA256SUMS.txt \
+            --verify-tag \
+            --title "Page Inspector $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md

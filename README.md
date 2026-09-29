@@ -34,6 +34,12 @@ pnpm-lock.yaml
 
 根目录负责代码规范、提交钩子和统一命令。扩展与 Nuxt 应用分别进行类型检查；WXT 的自动导入和样式扫描限定在扩展目录。Nuxt 3／4 使用各自的 Vue Router 和构建工具版本，不通过全局 overrides 强制统一。
 
+## 下载与发布
+
+可从 [GitHub Releases](https://github.com/amanofuyu/page-inspector/releases) 下载构建好的扩展 ZIP。解压后，在 Chrome／Edge 扩展管理页开启「开发者模式」，点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的目录。
+
+维护者推送与项目版本一致的 `v主版本.次版本.修订版本` 标签后，GitHub Actions 会自动检查、打包并发布 ZIP 与 SHA-256 校验文件。版本准备、发布命令和失败重试见 [发布指南](docs/releasing.md)。
+
 ## 开发
 
 使用 Node 22（最低 22.22.1）和 pnpm 10.19.0；`.nvmrc` 固定开发与验证版本为 22.23.3。项目已启用 `engine-strict`，安装时会拒绝不满足 Node 版本约束的环境。新增或更新依赖前先联网查询最新版本及运行环境要求。
