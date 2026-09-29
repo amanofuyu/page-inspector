@@ -4,12 +4,21 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 已推送的正式版本标签，例如 v0.0.1
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 defaults:
@@ -27,6 +36,7 @@ jobs:
       - name: 检出版本标签
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 固定 v7.0.1
         with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
 
       - name: 设置项目 Node 版本
@@ -41,7 +51,7 @@ jobs:
           import assert from 'node:assert/strict'
           import { readFileSync } from 'node:fs'
 
-          const tag = process.env.GITHUB_REF_NAME
+          const tag = process.env.RELEASE_TAG
           assert.match(tag, /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/, '发布标签必须使用 v主版本.次版本.修订版本，不支持预发布后缀')
           for (const file of ['package.json', 'apps/extension/package.json']) {
             const { version } = JSON.parse(readFileSync(file, 'utf8'))
@@ -79,7 +89,7 @@ jobs:
 
           archives = list(Path('apps/extension/.output').glob('*-chrome-prod.zip'))
           assert len(archives) == 1, '必须且只能生成一个 Chrome 生产压缩包'
-          version = os.environ['GITHUB_REF_NAME'][1:]
+          version = os.environ['RELEASE_TAG'][1:]
           with ZipFile(archives[0]) as archive:
               assert archive.testzip() is None, '压缩包完整性检查失败'
               manifest = json.loads(archive.read('manifest.json'))
@@ -99,9 +109,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            ".artifacts/release/page-inspector-${GITHUB_REF_NAME#v}-chrome.zip" \
+          gh release create "$RELEASE_TAG" \
+            ".artifacts/release/page-inspector-${RELEASE_TAG#v}-chrome.zip" \
             .artifacts/release/SHA256SUMS.txt \
             --verify-tag \
-            --title "Page Inspector $GITHUB_REF_NAME" \
+            --title "Page Inspector $RELEASE_TAG" \
             --notes-file .github/release-notes.md
