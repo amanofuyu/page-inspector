@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NetworkSession } from '../network/session'
 import type { SeoField, SeoRow } from './model'
+import type { ToastInput } from '@/composables/useToast'
 import { ChevronRight, Copy, Download, RefreshCw, Search } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
@@ -15,7 +16,7 @@ const props = defineProps<{
   tabId: number | null
   network?: NetworkSession
 }>()
-const emit = defineEmits<{ notice: [message: string] }>()
+const emit = defineEmits<{ notice: [notice: ToastInput] }>()
 const {
   dom,
   html,
@@ -130,10 +131,10 @@ function toggle(row: SeoRow) {
 async function copy(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    emit('notice', '已复制 SEO 数据')
+    emit('notice', { message: '已复制 SEO 数据', kind: 'success' })
   }
   catch {
-    emit('notice', '复制失败，请重试。')
+    emit('notice', { message: '复制失败，请重试。', kind: 'error' })
   }
 }
 function download(format: 'json' | 'md') {
@@ -157,10 +158,10 @@ function download(format: 'json' | 'md') {
     anchor.download = `page-seo-${Date.now()}.${format}`
     anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
-    emit('notice', '已导出 SEO 报告，包含来源、覆盖范围和完整字段')
+    emit('notice', { message: '已导出 SEO 报告，包含来源、覆盖范围和完整字段', kind: 'success' })
   }
   catch {
-    emit('notice', 'SEO 报告导出失败，请重试。')
+    emit('notice', { message: 'SEO 报告导出失败，请重试。', kind: 'error' })
   }
 }
 function locateIssue(key: string) {

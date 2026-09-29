@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { NetworkApi, NetworkRecord } from './session'
+import type { ToastInput } from '@/composables/useToast'
 import { ChevronRight } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import ExpandTransition from '../inspector/ExpandTransition.vue'
@@ -16,9 +17,7 @@ const props = defineProps<{
   tabId?: number
 }>()
 const emit = defineEmits<{
-  notice: [
-        message: string,
-  ]
+  notice: [notice: ToastInput]
   inspect: [
         value: ReturnType<typeof responseSnapshot>,
   ]
@@ -74,16 +73,16 @@ async function read() {
     await session.read(selected.value.id)
   }
   catch (failure) {
-    emit('notice', failure instanceof Error ? failure.message : String(failure))
+    emit('notice', { message: failure instanceof Error ? failure.message : String(failure), kind: 'error' })
   }
 }
 async function copyUrl() {
   try {
     await navigator.clipboard.writeText(selected.value!.url)
-    emit('notice', '已复制完整请求 URL')
+    emit('notice', { message: '已复制完整请求 URL', kind: 'success' })
   }
   catch {
-    emit('notice', '复制失败。')
+    emit('notice', { message: '复制失败。', kind: 'error' })
   }
 }
 async function inspect() {
@@ -99,7 +98,7 @@ async function inspect() {
     emit('inspect', next)
   }
   catch (failure) {
-    emit('notice', failure instanceof Error ? failure.message : String(failure))
+    emit('notice', { message: failure instanceof Error ? failure.message : String(failure), kind: 'error' })
   }
   finally {
     inspecting.value = false

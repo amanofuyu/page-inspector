@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { FieldDetail, WorkerOperations } from '../../workers/protocol'
 import type { FieldPath } from '../inspection/model'
+import type { DataNode } from '../nuxt/format'
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { QueryCondition, QuerySpec } from '../query/engine'
 import type { SavedQuery, WatchComparison, WatchRule } from '../watch/model'
+import type { ToastInput } from '@/composables/useToast'
 import { ChevronRight, Download, RefreshCw } from '@lucide/vue'
 import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import { useDefinitions } from '@/composables/useDefinitions'
@@ -22,11 +24,11 @@ const props = defineProps<{
   tabId?: number | null
   active: string
   status: string
+  dataNode?: DataNode
+  dataDetailVisible?: boolean
 }>()
 const emit = defineEmits<{
-  notice: [
-        message: string,
-  ]
+  notice: [notice: ToastInput]
   activate: [
         view: string,
   ]
@@ -81,7 +83,7 @@ function size(bytes: number | null) {
   return bytes === null ? '未知' : bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1048576).toFixed(2)} MiB`
 }
 function reportError(failure: unknown) {
-  emit('notice', failure instanceof Error ? failure.message : String(failure))
+  emit('notice', { message: failure instanceof Error ? failure.message : String(failure), kind: 'error' })
 }
 function download(value: unknown, name: string) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' }))
@@ -164,7 +166,7 @@ function closeDetail() {
 }
 async function locate(path: FieldPath, location: string | null = null) {
   if (!ready.value) {
-    emit('notice', '索引尚未就绪，请等待或重新建立索引。')
+    emit('notice', { message: '索引尚未就绪，请等待或重新建立索引。', kind: 'warning' })
     return
   }
   const current = generation
@@ -198,7 +200,7 @@ function toggleInlineDetail(location: string, path: FieldPath) {
 async function changeWatch(path: FieldPath, toggle = false) {
   const selected = scopeFor(props.snapshot, props.app, includeQuery.value)
   if (!selected) {
-    emit('notice', '需要可确认的初始文档和唯一应用声明标识；当前应用不能自动绑定关注。')
+    emit('notice', { message: '需要可确认的初始文档和唯一应用声明标识；当前应用不能自动绑定关注。', kind: 'warning' })
     return
   }
   const key = formatPath(path)
@@ -208,7 +210,7 @@ async function changeWatch(path: FieldPath, toggle = false) {
     return
   const existing = watches.value.filter(rule => formatPath(rule.path) === key)
   if (existing.length && !toggle) {
-    emit('notice', '该路径已关注。')
+    emit('notice', { message: '该路径已关注。', kind: 'info' })
     return
   }
   pendingWatches.value.set(operation, { context, path: key })
@@ -217,11 +219,11 @@ async function changeWatch(path: FieldPath, toggle = false) {
       // 同一路径可能有多个适用规则，取消时一并移除，保证按钮与当前范围一致。
       for (const rule of existing)
         await remove(rule.id)
-      emit('notice', '已取消关注字段。')
+      emit('notice', { message: '已取消关注字段。', kind: 'success' })
     }
     else {
       await save({ version: 1, kind: 'watch', id: crypto.randomUUID(), name: watchName.value.trim().slice(0, 160) || key.slice(0, 160), scope: selected, path: JSON.parse(JSON.stringify(path)), createdAt: Date.now() })
-      emit('notice', '已关注字段；比较值仅保留在当前面板会话。')
+      emit('notice', { message: '已关注字段；比较值仅保留在当前面板会话。', kind: 'success' })
       watchName.value = ''
     }
   }
@@ -265,7 +267,7 @@ async function updateWatches() {
 async function saveQuery() {
   const selected = scopeFor(props.snapshot, props.app, includeQuery.value)
   if (!selected) {
-    emit('notice', '此应用没有可安全绑定的站点范围。')
+    emit('notice', { message: '此应用没有可安全绑定的站点范围。', kind: 'warning' })
     return
   }
   try {
@@ -295,10 +297,10 @@ async function rename(rule: WatchRule, event: Event) {
 async function copy(value: unknown) {
   try {
     await navigator.clipboard.writeText(typeof value === 'string' ? value : JSON.stringify(value, null, 2))
-    emit('notice', '已复制')
+    emit('notice', { message: '已复制', kind: 'success' })
   }
   catch {
-    emit('notice', '复制失败，请使用导出。')
+    emit('notice', { message: '复制失败，请使用导出。', kind: 'error' })
   }
 }
 function comparison(id: string) {
@@ -327,13 +329,22 @@ watch(watches, () => {
   void updateWatches()
 })
 watch(() => props.active, (value, previous) => {
-  if (detailLocation.value !== null || value === 'analysis' || previous === 'analysis')
+  if (value !== previous)
     closeDetail()
   if (value === 'data' && sourceMode.value !== null)
     sourceMode.value = null
   if (value === 'analysis' && !analysis.value)
     void analyze()
-})
+}, { flush: 'sync' })
+// 数据区先显示当前快照中的节点，再用既有 Worker 补齐该字段的局部视图与来源。
+watch([() => props.dataNode, () => props.dataDetailVisible, () => props.active, ready], () => {
+  if (props.active !== 'data')
+    return
+  closeDetail()
+  const path = props.dataNode?.fieldPath
+  if (props.dataDetailVisible && path && path.at(-1)?.kind !== 'map-entry' && ready.value)
+    void locate(path)
+}, { flush: 'sync' })
 defineExpose({ toggleWatch, locate })
 </script>
 
@@ -356,7 +367,7 @@ defineExpose({ toggleWatch, locate })
     </p>
     <div class="feature-columns">
       <div v-resize-motion="`${active}:${spec.conditions.length}:${results?.total}:${results?.offset}:${watches.length}`" class="feature-primary">
-        <slot v-if="active === 'data'" name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" />
+        <slot v-if="active === 'data'" name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :data-detail="detailProps" />
         <template v-if="active === 'analysis'">
           <div class="feature-heading">
             <h2>原文体积与字段估算</h2><button class="btn btn-sm btn-ghost" :disabled="!ready || !!pending" @click="analyze">
@@ -573,7 +584,7 @@ defineExpose({ toggleWatch, locate })
         </template>
       </div>
       <ExpandTransition>
-        <FieldDetailPanel v-if="detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" />
+        <FieldDetailPanel v-if="active !== 'data' && detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" />
       </ExpandTransition>
     </div>
   </section>

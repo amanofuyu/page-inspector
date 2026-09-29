@@ -1,8 +1,12 @@
 import { onScopeDispose, shallowRef } from 'vue'
 
-export interface ToastMessage {
-  id: number
+export type ToastKind = 'success' | 'error' | 'warning' | 'info'
+export interface ToastInput {
   message: string
+  kind: ToastKind
+}
+export interface ToastMessage extends ToastInput {
+  id: number
 }
 export type ToastPauseReason = 'pointer' | 'focus'
 const DURATION = 5000
@@ -35,11 +39,12 @@ export function useToast() {
         dismiss()
     }, remaining)
   }
-  function show(message: string) {
+  function show(input: ToastInput | string) {
+    const { message, kind } = typeof input === 'string' ? { message: input, kind: 'info' as const } : input
     if (disposed || !message.trim())
       return
     // 每次操作都有新标识，同文案再次出现也刷新倒计时与读屏播报。
-    toast.value = { id: ++sequence, message }
+    toast.value = { id: ++sequence, message, kind }
     remaining = DURATION
     schedule()
   }

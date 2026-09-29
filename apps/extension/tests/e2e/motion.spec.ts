@@ -46,6 +46,11 @@ test('鼠标反馈保持热区稳定，展开与状态尺寸连续变化且支�
   })
   expect(interrupted).toEqual({ leavingInert: true, expanded: 'true', children: 1, inert: false })
 
+  await panel.click('[aria-label="页面与数据来源"]')
+  await panel.click('.source-details > summary')
+  await panel.evaluate(async () => {
+    await Promise.all(document.querySelector('.source-details')!.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {})))
+  })
   const disclosure = await panel.evaluate(async () => {
     const source = document.querySelector<HTMLDetailsElement>('.source-details')!
     source.querySelector<HTMLElement>('summary')!.click()
@@ -59,6 +64,7 @@ test('鼠标反馈保持热区稳定，展开与状态尺寸连续变化且支�
   expect(disclosure.open).toBe(true)
   expect(new Set(disclosure.heights.map(Math.round)).size).toBeGreaterThan(2)
 
+  await panel.click('[aria-label="关闭页面信息"]')
   const resizing = await panel.evaluate(async () => {
     const target = document.querySelector<HTMLElement>('.feature-primary')!
     const before = target.getBoundingClientRect().height
@@ -129,12 +135,17 @@ test('减少动态效果时立即展开与切换，并取消正在执行的尺�
 
 test('来源卡片收起结束时外边距不再造成高度跳变', async ({ extension }) => {
   const { panel } = extension
+  await panel.click('[aria-label="页面与数据来源"]')
+  await panel.click('.source-details > summary')
+  await panel.evaluate(async () => {
+    await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))
+  })
   for (const width of [320, 800]) {
     await panel.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
     const collapsed = await panel.evaluate(() => document.querySelector('.source-details')!.getBoundingClientRect().height)
     await panel.click('.source-details > summary')
     await panel.evaluate(async () => {
-      await Promise.all(document.querySelector('.source-details')!.getAnimations({ subtree: true }).map(animation => animation.finished))
+      await Promise.all(document.querySelector('.source-details')!.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {})))
     })
     const frames = await panel.evaluate(async () => {
       const source = document.querySelector<HTMLDetailsElement>('.source-details')!

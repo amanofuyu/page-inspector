@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ToastInput } from '@/composables/useToast'
 import type { FieldPath } from '@/features/inspection/model'
 import type { DataNode } from '@/features/nuxt/format'
 import { ChevronRight, Copy, Info, Link } from '@lucide/vue'
@@ -13,13 +14,15 @@ const props = defineProps<{
   initialOpen?: boolean
   watchedPaths?: ReadonlySet<string>
   pendingWatchPaths?: ReadonlySet<string>
+  selectable?: boolean
+  selectedPath?: string
+  hideActions?: boolean
 }>()
 const emit = defineEmits<{
   watch: [path: FieldPath]
   locate: [path: FieldPath]
-  notice: [
-        message: string,
-  ]
+  select: [node: DataNode]
+  notice: [notice: ToastInput]
 }>()
 const expanded = ref(props.initialOpen ?? false)
 const limit = ref(100)
@@ -31,19 +34,33 @@ function toggle() {
 async function copy(pathOnly: boolean) {
   try {
     await navigator.clipboard.writeText(pathOnly ? props.node.fieldPath ? formatPath(props.node.fieldPath) : props.node.path : exportNode(props.node))
-    emit('notice', pathOnly ? '已复制字段路径' : '已复制带类型的数据')
+    emit('notice', { message: pathOnly ? '已复制字段路径' : '已复制带类型的数据', kind: 'success' })
   }
   catch {
-    emit('notice', '复制失败，请使用导出功能。')
+    emit('notice', { message: '复制失败，请使用导出功能。', kind: 'error' })
   }
 }
 </script>
 
 <template>
   <div class="tree-node">
-    <div class="tree-row" :data-type="node.type">
+    <div class="tree-row" :class="{ 'tree-row-selected': selectable && selectedPath === node.path, 'tree-row-selectable': selectable }" :data-type="node.type">
+      <template v-if="selectable">
+        <button v-if="node.children" class="tree-expand" :aria-expanded="expanded" :aria-label="`${expanded ? '折叠' : '展开'} ${node.key}`" @click="toggle">
+          <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" />
+        </button>
+        <span v-else class="tree-expand-placeholder" aria-hidden="true">·</span>
+        <button class="tree-main tree-select" :aria-pressed="selectedPath === node.path" :aria-label="`字段详情 ${node.path}`" title="字段详情" @click="emit('select', node)">
+          <span class="tree-content">
+            <span class="tree-key" :title="node.path">{{ node.key }}</span>
+            <span class="tree-value" :title="node.reference">{{ node.preview }}</span>
+            <span class="tree-type">{{ node.type }}</span>
+          </span>
+        </button>
+      </template>
       <component
         :is="node.children ? 'button' : 'div'"
+        v-else
         class="tree-main"
         :class="{ 'tree-toggle': node.children }"
         :type="node.children ? 'button' : undefined"
@@ -62,7 +79,7 @@ async function copy(pathOnly: boolean) {
           <span class="tree-value" :title="node.reference">{{ node.preview }}</span>
         </span>
       </component>
-      <span class="tree-actions">
+      <span v-if="!selectable && !hideActions" class="tree-actions">
 
         <button class="btn btn-ghost btn-xs" title="复制字段路径" :aria-label="`复制字段路径 ${node.path}`" @click="copy(true)"><Link :size="12" aria-hidden="true" /></button>
         <button v-if="node.fieldPath && node.fieldPath.at(-1)?.kind !== 'map-entry'" class="btn btn-ghost btn-xs" :aria-label="`字段详情 ${node.path}`" title="字段详情" @click="emit('locate', node.fieldPath)"><Info :size="12" aria-hidden="true" /></button>
@@ -72,7 +89,7 @@ async function copy(pathOnly: boolean) {
     </div>
     <ExpandTransition>
       <div v-if="expanded && node.children" class="tree-children">
-        <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" />
+        <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :selectable="selectable" :selected-path="selectedPath" :hide-actions="hideActions" @select="emit('select', $event)" @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" />
         <button v-if="node.children.length > limit" class="btn btn-ghost btn-xs my-1" @click="limit += 100">
           再显示 100 项（剩余 {{ node.children.length - limit }} 项）
         </button>

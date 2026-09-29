@@ -2,11 +2,12 @@
 import { Monitor, Moon, Sun } from '@lucide/vue'
 import { useTheme } from '@/composables/useTheme'
 
+defineProps<{ compact?: boolean }>()
 const { colorMode } = useTheme()
 </script>
 
 <template>
-  <label class="theme-picker" title="界面主题">
+  <label class="theme-picker" :class="{ 'theme-picker-compact': compact }" title="界面主题">
     <Monitor v-if="colorMode === 'auto'" :size="14" aria-hidden="true" />
     <Sun v-else-if="colorMode === 'light'" :size="14" aria-hidden="true" />
     <Moon v-else :size="14" aria-hidden="true" />

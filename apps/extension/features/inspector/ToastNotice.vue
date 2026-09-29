@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ToastMessage, ToastPauseReason } from '@/composables/useToast'
-import { Info, X } from '@lucide/vue'
+import { CircleCheck, CircleX, Info, TriangleAlert, X } from '@lucide/vue'
 import { ref, watch } from 'vue'
 
 const props = defineProps<{ toast: ToastMessage | null }>()
@@ -10,6 +10,12 @@ const emit = defineEmits<{
   resume: [reason: ToastPauseReason]
 }>()
 const region = ref<HTMLElement | null>(null)
+const appearances = {
+  success: { icon: CircleCheck, label: '成功' },
+  error: { icon: CircleX, label: '失败' },
+  warning: { icon: TriangleAlert, label: '警告' },
+  info: { icon: Info, label: '信息' },
+}
 let previousFocus: HTMLElement | null = null
 function syncInteraction() {
   const card = region.value?.querySelector<HTMLElement>('.inspector-toast')
@@ -44,8 +50,9 @@ function restore(element: Element) {
 <template>
   <div ref="region" class="toast-region" role="status" aria-live="polite" aria-atomic="true">
     <Transition name="toast" @before-leave="leave" @after-leave="restore" @leave-cancelled="restore">
-      <div v-if="toast" class="inspector-toast" @mouseenter="emit('pause', 'pointer')" @mouseleave="emit('resume', 'pointer')" @focusin="emit('pause', 'focus')" @focusout="syncInteraction" @keydown.esc.stop.prevent="dismiss">
-        <Info class="toast-icon" :size="18" aria-hidden="true" />
+      <div v-if="toast" class="inspector-toast" :data-kind="toast.kind" @mouseenter="emit('pause', 'pointer')" @mouseleave="emit('resume', 'pointer')" @focusin="emit('pause', 'focus')" @focusout="syncInteraction" @keydown.esc.stop.prevent="dismiss">
+        <span class="sr-only">{{ appearances[toast.kind].label }}：</span>
+        <component :is="appearances[toast.kind].icon" class="toast-icon" :size="18" aria-hidden="true" />
         <p :key="toast.id" class="toast-message">
           {{ toast.message }}
         </p>

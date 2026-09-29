@@ -71,7 +71,7 @@ test('实际 payload 来源与原文导出', async ({ extension }, testInfo) => 
   await panel.click('.view-tabs button:last-child')
   if (profile === 'static-external')
     await panel.select('[aria-label="原文来源"]', '1')
-  await panel.click('.viewer-toolbar > button')
+  await panel.click('.export-button')
   await expect.poll(async () => (await readdir(downloads)).filter(name => name.endsWith('.json')).length).toBe(1)
   const filename = (await readdir(downloads)).find(name => name.endsWith('.json'))!
   expect(await readFile(path.join(downloads, filename), 'utf8')).toBe(original)

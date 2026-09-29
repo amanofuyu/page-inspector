@@ -123,7 +123,8 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
   await website.goto(`${base}/features?version=1`)
   await expect.poll(() => panel.text()).toContain('feature-lab')
   await panel.search('price')
-  const treeButton = '.search-result .watch-button'
+  const treeButton = '#data-field-detail .watch-button'
+  await panel.click('.search-result [title="字段详情"]')
   const pressed = (selector: string) => panel.evaluate(selector => document.querySelector(selector)?.getAttribute('aria-pressed'), selector)
   await expect.poll(() => pressed(treeButton)).toBe('false')
   await panel.click(treeButton)
@@ -131,11 +132,12 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
   expect(await panel.evaluate(selector => document.querySelector(`${selector} svg`)?.getAttribute('fill'), treeButton)).toBe('currentColor')
 
   await panel.click('.search-result [title="字段详情"]')
-  await expect.poll(() => panel.evaluate(() => [...document.querySelectorAll('.field-detail .watch-button')].map(button => button.getAttribute('aria-pressed')))).toEqual(['true', 'true'])
+  await expect.poll(() => panel.evaluate(() => [...document.querySelectorAll('.field-detail .watch-button')].map(button => button.getAttribute('aria-pressed')))).toEqual(['true'])
   await clickText(panel, '检索', '.workspace-tabs')
   await fillField(panel, '[aria-label="条件 1 内容"]', 'feature-lab.watched.price')
   await clickText(panel, '执行查询')
   await expect.poll(() => pressed('.query-result .watch-button')).toBe('true')
+  await panel.click('.query-result .path-button')
   await clickText(panel, '已关注', '.query-result')
   await expect.poll(() => pressed('.field-detail .watch-button')).toBe('false')
   await clickText(panel, '关注', '.query-result')
@@ -145,6 +147,7 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
   await panel.send('Page.reload')
   await expect.poll(() => panel.text()).toContain('feature-lab')
   await panel.search('price')
+  await panel.click('.search-result [title="字段详情"]')
   await expect.poll(() => pressed(treeButton)).toBe('true')
   const saved = await panel.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([key]) => key.startsWith('inspector-definition/'))!) as [string, WatchRule]
   const worker = context.serviceWorkers()[0]!
@@ -168,7 +171,7 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
 test('来源减少后回到合并模式并恢复分析与检索', async ({ extension }) => {
   const { panel, website } = extension
   await website.goto(`${base}/external`)
-  await expect.poll(() => panel.text()).toContain('2 个来源')
+  await expect.poll(() => panel.text()).toContain('2 来源')
   await clickText(panel, '分析', '.workspace-tabs')
   await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
   await panel.select('[aria-label="分析来源"]', '1')

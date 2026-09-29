@@ -15,6 +15,20 @@ afterEach(() => {
 })
 
 describe('操作提示计时与生命周期', () => {
+  it('普通文案默认是信息提示，同文案更换类型时更新标识并重新计时', () => {
+    state.show('操作提示')
+    expect(state.toast.value?.kind).toBe('info')
+    const first = state.toast.value!.id
+    vi.advanceTimersByTime(4000)
+    state.show({ message: '操作提示', kind: 'warning' })
+    expect(state.toast.value).toMatchObject({ message: '操作提示', kind: 'warning' })
+    expect(state.toast.value!.id).toBeGreaterThan(first)
+    vi.advanceTimersByTime(4999)
+    expect(state.toast.value?.kind).toBe('warning')
+    vi.advanceTimersByTime(1)
+    expect(state.toast.value).toBeNull()
+  })
+
   it('相同文案再次出现时重新计时，旧倒计时不会关闭新提示', () => {
     state.show('已复制')
     const first = state.toast.value!.id

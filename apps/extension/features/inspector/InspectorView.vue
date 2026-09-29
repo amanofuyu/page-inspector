@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { responseSnapshot } from '../network/session'
-import { ChevronRight, CircleAlert, Download, Info, LockKeyhole, RefreshCw, ScanLine, Search } from '@lucide/vue'
+import { Braces, ChartNoAxesColumnIncreasing, CircleAlert, Download, Globe, Info, Network, PanelRight, RefreshCw, ScanLine, Search, Star } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import ThemeController from '@/components/theme-controller.vue'
@@ -14,8 +14,10 @@ import { unwrap } from '@/features/nuxt/types'
 import NetworkView from '../network/NetworkView.vue'
 import SeoView from '../seo/SeoView.vue'
 import FeatureWorkbench from './FeatureWorkbench.vue'
-import { vResizeMotion } from './motion'
+import FieldDetailPanel from './FieldDetailPanel.vue'
+import PageContextDialog from './PageContextDialog.vue'
 import ToastNotice from './ToastNotice.vue'
+import { useDataSelection } from './useDataSelection'
 
 const props = defineProps<{
   targetTabId?: number
@@ -23,12 +25,22 @@ const props = defineProps<{
 }>()
 const { result, status: pageStatus, message, currentUrl, snapshotWarning, refresh, tabId } = useInspection(props.targetTabId === undefined ? undefined : { tabId: props.targetTabId })
 const activeFeature = ref('data')
+const contextOpen = ref(false)
+const mainElement = ref<HTMLElement | null>(null)
+const workspaces = [
+  { id: 'data', label: '数据', icon: Braces },
+  { id: 'analysis', label: '分析', icon: ChartNoAxesColumnIncreasing },
+  { id: 'query', label: '检索', icon: Search },
+  { id: 'watch', label: '关注', icon: Star },
+  { id: 'seo', label: 'SEO', icon: Globe },
+]
 const seoVisited = ref(false)
 const seoView = ref<InstanceType<typeof SeoView> | null>(null)
 const networkView = ref<InstanceType<typeof NetworkView> | null>(null)
 watch(activeFeature, (value) => {
   if (value === 'seo')
     seoVisited.value = true
+  mainElement.value?.scrollTo({ top: 0 })
 })
 const workbench = ref<InstanceType<typeof FeatureWorkbench> | null>(null)
 const responseOverride = shallowRef<ReturnType<typeof responseSnapshot> | null>(null)
@@ -71,7 +83,31 @@ const views = [
   { id: 'raw', label: '原文' },
 ]
 const selectedNode = computed(() => tree.value?.root)
+const selectionContext = computed(() => `${responseOverride.value?.snapshot.snapshotId ?? result.value?.documentId ?? result.value?.requestId}:${application.value?.id}:${view.value}`)
+const { selected: focusedNode, visible: detailVisible, select: selectNode } = useDataSelection(selectedNode, selectionContext)
 const found = computed(() => selectedNode.value ? searchTree(selectedNode.value, search.value) : { matches: [], limited: false })
+const refreshing = computed(() => activeFeature.value === 'seo' ? seoView.value?.status === 'loading' : pageStatus.value === 'loading')
+const pageAddress = computed(() => {
+  if (!currentUrl.value)
+    return '等待当前标签页…'
+  try {
+    const url = new URL(currentUrl.value)
+    return `${url.host}${url.pathname}` || currentUrl.value
+  }
+  catch {
+    return currentUrl.value
+  }
+})
+const captureTime = computed(() => {
+  const time = activeFeature.value === 'seo' ? seoView.value?.dom?.sampledAt : snapshot.value?.collectedAt
+  return time ? new Date(time).toLocaleTimeString() : ''
+})
+function refreshCurrent() {
+  if (activeFeature.value === 'seo')
+    void seoView.value?.refresh()
+  else
+    void refresh()
+}
 const renderLabel = computed(() => {
   const value = unwrap(parsed.value?.payload?.serverRendered) ?? application.value?.serverRendered
   return value === true ? 'SSR / 预渲染快照' : value === false ? '客户端初始 payload' : '初始 payload · 渲染方式未知'
@@ -88,10 +124,10 @@ function download(text: string, filename: string) {
     link.download = filename
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
-    showNotice('已发起下载')
+    showNotice({ message: '已发起下载', kind: 'success' })
   }
   catch {
-    showNotice('导出失败，请重试。')
+    showNotice({ message: '导出失败，请重试。', kind: 'error' })
   }
 }
 function exportCurrent() {
@@ -151,50 +187,32 @@ watch(view, () => {
 </script>
 
 <template>
-  <div class="inspector-shell" :class="{ 'devtools-shell': devtools }">
-    <div class="inspector-ambience" aria-hidden="true" />
+  <div class="inspector-shell focus-layout" :class="{ 'devtools-shell': devtools }">
     <header class="app-header">
       <div class="brand">
-        <img class="brand-icon" src="/icon.svg" width="36" height="36" alt="" aria-hidden="true">
-        <div>
-          <h1>Page Inspector</h1>
-          <p>NUXT PAYLOAD EXPLORER</p>
-        </div>
+        <img class="brand-icon" src="/icon.svg" width="24" height="24" alt="" aria-hidden="true">
+        <h1>Page Inspector</h1>
       </div>
-      <ThemeController />
-    </header>
-    <main class="inspector-main">
-      <section class="page-card glass-card" aria-label="当前页面">
-        <div class="section-heading">
-          <span class="eyebrow">当前页面</span>
-          <span v-resize-motion.inline="statusLabel" class="capture-status" :data-status="activeFeature === 'seo' ? seoView?.status : responseOverride ? status : pageStatus" role="status">
-            <span class="status-dot" aria-hidden="true" />{{ statusLabel }}
-          </span>
-        </div>
-        <h2 class="page-title" :title="pageTitle">
-          {{ pageTitle }}
-        </h2>
-        <p class="page-url" :title="currentUrl">
-          {{ currentUrl || '等待当前标签页…' }}
-        </p>
-        <div class="page-actions">
-          <span class="capture-time">{{ activeFeature === 'seo' ? (seoView?.dom ? `${new Date(seoView.dom.sampledAt).toLocaleTimeString()} SEO 采样` : '读取当前主文档 SEO') : snapshot ? `${new Date(snapshot.collectedAt).toLocaleTimeString()} 采集` : '读取当前标签页的初始数据' }}</span>
-          <button class="btn btn-sm btn-ghost refresh-button" :disabled="activeFeature === 'seo' ? seoView?.status === 'loading' : pageStatus === 'loading'" @click="activeFeature === 'seo' ? seoView?.refresh() : refresh()">
-            <RefreshCw :size="14" :class="{ 'animate-spin': activeFeature === 'seo' ? seoView?.status === 'loading' : pageStatus === 'loading' }" aria-hidden="true" />{{ (activeFeature === 'seo' ? seoView?.status === 'loading' : pageStatus === 'loading') ? '读取中' : '重新读取' }}
-          </button>
-        </div>
-        <p v-if="activeFeature !== 'seo' && pageStatus === 'error' && result && !responseOverride" class="refresh-error" role="alert">
-          重新读取失败，仍显示上次结果：{{ message }}
-        </p>
-      </section>
-
-      <nav class="workspace-tabs glass-card" aria-label="工作区">
-        <button v-for="item in [{ id: 'data', label: '数据' }, { id: 'analysis', label: '分析' }, { id: 'query', label: '检索' }, { id: 'watch', label: '关注' }, { id: 'seo', label: 'SEO' }]" :key="item.id" :aria-pressed="activeFeature === item.id" :class="{ active: activeFeature === item.id }" @click="activeFeature = item.id">
-          {{ item.label }}
-        </button><button v-if="devtools" :aria-pressed="activeFeature === 'network'" :class="{ active: activeFeature === 'network' }" @click="activeFeature = 'network'">
-          网络
+      <span class="header-address" :title="`${pageTitle}\n${currentUrl}`">{{ pageAddress }}</span>
+      <div class="header-controls">
+        <button class="btn btn-ghost btn-xs icon-button" title="页面与数据来源" aria-label="页面与数据来源" :aria-expanded="contextOpen" aria-haspopup="dialog" aria-controls="page-context" @click="contextOpen = true">
+          <Info :size="15" aria-hidden="true" />
         </button>
-      </nav>
+        <button class="btn btn-ghost btn-xs icon-button refresh-button" :disabled="refreshing" :title="refreshing ? '读取中' : '重新读取'" :aria-label="refreshing ? '读取中' : '重新读取'" @click="refreshCurrent">
+          <RefreshCw :size="15" :class="{ 'animate-spin': refreshing }" aria-hidden="true" />
+        </button>
+        <ThemeController compact />
+      </div>
+    </header>
+    <PageContextDialog
+      v-model:open="contextOpen" :title="pageTitle" :url="currentUrl" :capture-time="captureTime"
+      :render-label="activeFeature !== 'seo' ? renderLabel : undefined"
+      :application="activeFeature !== 'seo' ? application : undefined" :initial-url="snapshot?.initialUrl"
+    />
+    <main ref="mainElement" class="inspector-main" :class="{ 'data-main': activeFeature === 'data' && application && parsed }">
+      <p v-if="activeFeature !== 'seo' && pageStatus === 'error' && result && !responseOverride" class="notice notice-warning refresh-error" role="alert">
+        重新读取失败，仍显示上次结果：{{ message }}
+      </p>
       <template v-if="activeFeature !== 'seo'">
         <section v-if="status === 'loading'" class="empty-state glass-card" role="status">
           <span class="empty-state-icon"><span class="loading loading-spinner loading-md" /></span>
@@ -227,21 +245,6 @@ watch(view, () => {
               <option v-for="(app, index) in snapshot.apps" :key="app.id" :value="index">{{ app.label }}</option>
             </select>
           </label>
-          <details v-show="activeFeature === 'data'" class="source-details disclosure-section glass-card">
-            <summary class="disclosure-summary">
-              <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>数据来源与范围</span>
-            </summary>
-            <p>初始文档：{{ snapshot?.initialUrl || '无法确认' }}</p>
-            <div v-for="(item, index) in application.sources" :key="index" class="source-item">
-              <strong>{{ item.kind === 'inline' ? '页面内嵌' : '外部 payload' }}</strong>
-              <p>{{ item.url || '当前文档' }}</p>
-              <small>{{ new Date(item.fetchedAt).toLocaleString() }} · {{ size(item.bytes) }}</small>
-            </div>
-            <p v-if="application.externalUrl">
-              外部资源为本次重新获取，无法保证与最初 HTML 的版本完全一致。
-            </p>
-            <p>仅展示初始 payload，不包含页面运行时状态和独立运行时配置。</p>
-          </details>
         </template>
       </template>
       <p v-if="responseOverride && activeFeature !== 'seo'" class="notice notice-warning">
@@ -251,25 +254,9 @@ watch(view, () => {
       </p>
       <NetworkView v-if="devtools" ref="networkView" :active="activeFeature === 'network'" :snapshot="result?.snapshot" :app="result?.snapshot?.apps[appIndex]" :document-id="result?.documentId" :tab-id="targetTabId" @notice="showNotice" @inspect="inspectResponse" />
       <SeoView v-if="seoVisited" ref="seoView" :active="activeFeature === 'seo'" :tab-id="tabId" :network="networkView?.session" @notice="showNotice" />
-      <FeatureWorkbench ref="workbench" :aria-busy="pageStatus === 'loading' && !responseOverride" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" @notice="showNotice" @activate="activeFeature = $event">
-        <template #data="{ watchedPaths, pendingWatchPaths }">
-          <section v-if="application && parsed" v-show="activeFeature === 'data'" v-resize-motion="`${view}:${!!search.trim()}`" class="data-card glass-card" aria-label="Payload 数据">
-            <div class="data-heading">
-              <div class="data-intro">
-                <span class="eyebrow">PAYLOAD</span>
-                <h2 class="data-label">
-                  {{ renderLabel }}
-                </h2>
-              </div>
-              <div class="payload-metric">
-                <p class="payload-size">
-                  {{ size(totalBytes) }}
-                </p>
-                <p class="metric-caption">
-                  采集原文 · {{ application.sources.length }} 个来源
-                </p>
-              </div>
-            </div>
+      <FeatureWorkbench ref="workbench" :aria-busy="pageStatus === 'loading' && !responseOverride" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" :data-node="focusedNode" :data-detail-visible="detailVisible && view !== 'raw'" @notice="showNotice" @activate="activeFeature = $event">
+        <template #data="{ watchedPaths, pendingWatchPaths, dataDetail }">
+          <section v-if="application && parsed" v-show="activeFeature === 'data'" class="data-card" aria-label="Payload 数据">
             <div v-if="parsed.diagnostics.length" class="diagnostics" role="status">
               <p v-for="diagnostic in parsed.diagnostics" :key="diagnostic">
                 {{ diagnostic }}
@@ -290,20 +277,14 @@ watch(view, () => {
                   {{ item.kind === 'inline' ? '内嵌原文' : '外部原文' }}
                 </option>
               </select>
+              <button v-if="view !== 'raw'" class="btn btn-ghost btn-sm detail-toggle" :disabled="!focusedNode" :aria-pressed="detailVisible" aria-controls="data-field-detail" @click="detailVisible = !detailVisible">
+                <PanelRight :size="14" aria-hidden="true" />详情
+              </button>
               <button class="btn btn-ghost btn-sm export-button" :disabled="view === 'raw' ? source?.text == null : !selectedNode" :title="view === 'raw' ? '导出完整已采集原文' : '导出带类型的当前视图'" @click="exportCurrent">
                 <Download :size="14" aria-hidden="true" />导出
               </button>
             </div>
-            <aside v-if="tree?.truncated && view !== 'raw'" class="view-limit-notice" role="status" aria-label="视图限制提示">
-              <Info class="view-limit-icon" :size="16" aria-hidden="true" />
-              <div class="view-limit-content">
-                <div class="view-limit-heading">
-                  <h3>视图已达展示上限</h3>
-                  <span class="view-limit-threshold">已限制为 <strong>10,000</strong> 个节点 / <strong>60</strong> 层</span>
-                </div>
-                <p>搜索与视图导出仅包含已展示的数据，完整已采集内容请导出原文。</p>
-              </div>
-            </aside>
+
             <RawViewer v-if="view === 'raw' && source" :source="source" />
             <div v-else-if="!selectedNode" class="empty-section">
               <p>{{ parsed.payload ? '此 payload 没有该字段。' : '数据暂时无法解析，请切换到原文查看。' }}</p>
@@ -311,33 +292,61 @@ watch(view, () => {
                 查看原文
               </button>
             </div>
-            <div v-else-if="search.trim()" class="search-results">
-              <p class="result-count" role="status">
-                {{ found.matches.length }} 条匹配{{ found.limited ? '（仅显示前 100 条）' : '' }}
-              </p>
-              <div v-for="node in found.matches" :key="node.path" class="search-result">
-                <p class="result-path">
-                  {{ node.path }}
-                </p>
-                <DataTreeNode :node="node" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="showNotice" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
-              </div>
-              <p v-if="!found.matches.length" class="empty-section">
-                没有匹配的字段，试试其他关键词。
-              </p>
+            <div v-else class="data-explorer" :class="{ 'with-detail': detailVisible && focusedNode }">
+              <section class="data-tree-pane" aria-label="数据树">
+                <div class="detail-pane-heading">
+                  <h2>数据树</h2><span>{{ tree?.count.toLocaleString() }} 个已展示节点</span>
+                </div>
+                <div :key="search.trim() ? 'search' : selectionContext" :class="search.trim() ? 'search-results' : 'tree-container'">
+                  <aside v-if="tree?.truncated" class="view-limit-notice" role="status" aria-label="视图限制提示">
+                    <Info class="view-limit-icon" :size="16" aria-hidden="true" />
+                    <div class="view-limit-content">
+                      <div class="view-limit-heading">
+                        <h3>视图已达展示上限</h3>
+                        <span class="view-limit-threshold">已限制为 <strong>10,000</strong> 个节点 / <strong>60</strong> 层</span>
+                      </div>
+                      <p>搜索与视图导出仅包含已展示的数据，完整已采集内容请导出原文。</p>
+                    </div>
+                  </aside>
+                  <template v-if="search.trim()">
+                    <p class="result-count" role="status">
+                      {{ found.matches.length }} 条匹配{{ found.limited ? '（仅显示前 100 条）' : '' }}
+                    </p>
+                    <div v-for="node in found.matches" :key="node.path" class="search-result">
+                      <p class="result-path">
+                        {{ node.path }}
+                      </p>
+                      <DataTreeNode :node="node" selectable :selected-path="detailVisible ? focusedNode?.path : undefined" @select="selectNode" />
+                    </div>
+                    <p v-if="!found.matches.length" class="empty-section">
+                      没有匹配的字段，试试其他关键词。
+                    </p>
+                  </template>
+                  <DataTreeNode v-else :key="selectionContext" :node="selectedNode" initial-open selectable :selected-path="detailVisible ? focusedNode?.path : undefined" @select="selectNode" />
+                </div>
+              </section>
+              <FieldDetailPanel v-if="detailVisible && focusedNode" id="data-field-detail" v-bind="dataDetail" :node="focusedNode" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @close="detailVisible = false" @notice="showNotice" @watch="workbench?.toggleWatch($event)" />
             </div>
-            <div v-else class="tree-container">
-              <DataTreeNode :key="`${responseOverride?.snapshot.snapshotId ?? result?.documentId ?? result?.requestId}:${application.id}:${view}`" :node="selectedNode" initial-open :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="showNotice" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
-            </div>
-            <p class="export-note">
-              视图导出保留类型与引用标记；原文导出保留采集文本。
-            </p>
           </section>
         </template>
       </FeatureWorkbench>
     </main>
-    <footer class="app-footer">
-      <span>NUXT 3 / 4</span>
-      <span class="privacy-note"><LockKeyhole :size="11" aria-hidden="true" />数据仅在本地查看</span>
+    <footer class="workspace-footer">
+      <div class="app-footer">
+        <span class="capture-status" :data-status="activeFeature === 'seo' ? seoView?.status : responseOverride ? status : pageStatus" role="status"><span class="status-dot" aria-hidden="true" />{{ statusLabel }}</span>
+        <span v-if="captureTime" class="capture-time">{{ captureTime }}</span>
+        <button v-if="application && activeFeature !== 'seo'" class="footer-source" :aria-expanded="contextOpen" aria-haspopup="dialog" aria-controls="page-context" :title="renderLabel" @click="contextOpen = true">
+          {{ size(totalBytes) }} · {{ application.sources.length }} 来源
+        </button>
+      </div>
+      <nav class="workspace-tabs" aria-label="工作区">
+        <button v-for="item in workspaces" :key="item.id" :aria-pressed="activeFeature === item.id" :class="{ active: activeFeature === item.id }" @click="activeFeature = item.id">
+          <component :is="item.icon" :size="16" aria-hidden="true" /><span>{{ item.label }}</span>
+        </button>
+        <button v-if="devtools" :aria-pressed="activeFeature === 'network'" :class="{ active: activeFeature === 'network' }" @click="activeFeature = 'network'">
+          <Network :size="16" aria-hidden="true" /><span>网络</span>
+        </button>
+      </nav>
     </footer>
     <ToastNotice :toast="toast" @dismiss="dismissNotice" @pause="pauseNotice" @resume="resumeNotice" />
   </div>
