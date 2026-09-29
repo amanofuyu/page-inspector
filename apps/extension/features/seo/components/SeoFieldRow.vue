@@ -4,6 +4,7 @@ import type { SeoDisplay } from '../useSeoViewState'
 import { Copy } from '@lucide/vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiDisclosure from '@/components/ui/UiDisclosure.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import { CHANGES, GROUPS } from '../model'
 import { seoFieldPreview } from '../preview'
 
@@ -94,12 +95,12 @@ function summary(field?: SeoField) {
               <Copy :size="13" aria-hidden="true" />复制标签
             </UiActionButton>
           </div>
-          <p v-if="field.truncated" class="notice notice-warning">
+          <UiNotice v-if="field.truncated" severity="warning">
             该字段达到读取或结构比较上限，无法确认完整差异。
-          </p>
-          <p v-if="field.jsonError" class="notice notice-error">
+          </UiNotice>
+          <UiNotice v-if="field.jsonError" severity="error">
             {{ field.jsonError }}
-          </p>
+          </UiNotice>
           <pre>{{ preview(field).text }}</pre>
           <p
             v-if="preview(field).truncated"

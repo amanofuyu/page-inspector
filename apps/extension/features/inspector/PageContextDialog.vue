@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { CollectedApp } from '../nuxt/types'
-import { ChevronRight, Clock3, FileJson, Info, LockKeyhole, X } from '@lucide/vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import type { UiAnimation } from '@/libs/motion'
+import { Clock3, FileJson, Info, LockKeyhole, X } from '@lucide/vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiDisclosure from '@/components/ui/UiDisclosure.vue'
+import { animateUi, motionDuration } from '@/libs/motion'
 
 const props = defineProps<{
   title: string
@@ -16,11 +19,32 @@ const open = defineModel<boolean>('open', { required: true })
 const dialog = ref<HTMLDialogElement | null>(null)
 const totalBytes = computed(() => props.application?.sources.reduce((total, source) => total + source.bytes, 0) ?? 0)
 const backdropPressed = ref(false)
+const sourcesOpen = ref(true)
+let animation: UiAnimation | undefined
 function syncDialog() {
-  if (open.value && !dialog.value?.open)
-    dialog.value?.showModal()
-  else if (!open.value && dialog.value?.open)
-    dialog.value.close()
+  const element = dialog.value
+  if (!element)
+    return
+  animation?.cancel()
+  element.inert = false
+  if (open.value) {
+    if (!element.open)
+      element.showModal()
+    animation = animateUi(element, { opacity: [0, 1], transform: ['translateY(10px) scale(0.98)', 'translateY(0px) scale(1)'] })
+  }
+  else if (element.open) {
+    // 原生模态层保留到离场结束，期间禁止重复操作，并在 close 后恢复入口焦点。
+    element.inert = true
+    animation = animateUi(element, { opacity: [1, 0], transform: ['translateY(0px) scale(1)', 'translateY(6px) scale(0.98)'] }, {
+      duration: motionDuration.feedback,
+      onComplete() {
+        if (!open.value) {
+          element.inert = false
+          element.close()
+        }
+      },
+    })
+  }
 }
 function onClose() {
   // 忽略快速重新打开之前排队的关闭事件。
@@ -37,6 +61,7 @@ function size(bytes: number) {
 // 原生模态框负责限制背景交互、约束键盘焦点，并在关闭后恢复触发入口的焦点。
 watch(open, syncDialog, { flush: 'post' })
 onMounted(syncDialog)
+onBeforeUnmount(() => animation?.cancel())
 </script>
 
 <template>
@@ -77,12 +102,11 @@ onMounted(syncDialog)
           </div>
         </section>
         <template v-if="application">
-          <details class="source-details disclosure-section context-sources" open>
-            <summary class="disclosure-summary">
-              <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" />
+          <UiDisclosure v-model:open="sourcesOpen" class="source-details disclosure-section context-sources">
+            <template #label>
               <span>数据来源</span>
               <span class="context-source-count">{{ application.sources.length }} 项 · {{ size(totalBytes) }}</span>
-            </summary>
+            </template>
             <div class="context-sources-content">
               <div class="context-initial-document">
                 <span class="context-section-label">初始文档</span>
@@ -106,7 +130,7 @@ onMounted(syncDialog)
                 </li>
               </ul>
             </div>
-          </details>
+          </UiDisclosure>
           <section class="context-scope" aria-labelledby="context-scope-heading">
             <h3 id="context-scope-heading" class="context-section-label">
               展示与导出范围

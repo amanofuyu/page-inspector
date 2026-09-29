@@ -2,6 +2,7 @@
 import type { Association, NetworkRecord, ResponseBody } from '../session'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiDisclosure from '@/components/ui/UiDisclosure.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import { formatBytes as size } from '../../inspector/format'
 import { vResizeMotion } from '../../inspector/motion'
 
@@ -36,9 +37,9 @@ const emit = defineEmits<{
     <p v-if="selected.redirectUrl" class="feature-caption break-text">
       重定向：{{ selected.redirectUrl }}，链路未经核实。
     </p>
-    <p v-if="selected.ambiguous" class="notice notice-warning">
+    <UiNotice v-if="selected.ambiguous" severity="warning">
       历史记录与实时事件有重复歧义，不确认为同一文档来源。
-    </p>
+    </UiNotice>
     <div class="feature-toolbar">
       <UiActionButton :disabled="selected.bodyState === 'loading' || selected.contentSize === null || selected.contentSize > 12582912" size="sm" variant="primary" @click="emit('read', selected.id)">
         {{ selected.bodyState === 'loading' ? '读取中…' : body ? '正文已读取' : '读取响应正文' }}
@@ -48,9 +49,9 @@ const emit = defineEmits<{
     </div>
     <p v-if="selected.contentSize === null" class="feature-caption">
       正文大小未知，默认只展示元信息。
-    </p><p v-if="selected.bodyError" class="notice notice-error">
+    </p><UiNotice v-if="selected.bodyError" severity="error">
       {{ selected.bodyError }}
-    </p>
+    </UiNotice>
     <template v-if="body">
       <div class="feature-toolbar">
         <span class="feature-caption">编码 {{ body.encoding }} · {{ size(body.bytes) }}</span><UiActionButton size="sm" @click="emit('inspect', selected.id)">

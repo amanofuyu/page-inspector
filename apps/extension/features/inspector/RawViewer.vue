@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { RawSource } from '@/features/nuxt/types'
 import { computed, ref, watch } from 'vue'
+import UiEmptyState from '@/components/ui/UiEmptyState.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import { useShiki } from '@/composables/useShiki'
 
 const props = defineProps<{
@@ -31,19 +33,19 @@ watch(() => props.source, async (source) => {
 
 <template>
   <div class="raw-viewer">
-    <p v-if="source.error" class="notice notice-error">
+    <UiNotice v-if="source.error" severity="error">
       {{ source.error }}
-    </p>
-    <p v-if="source.text === null" class="empty-section">
+    </UiNotice>
+    <UiEmptyState v-if="source.text === null">
       未取得该来源的原文。
-    </p>
+    </UiEmptyState>
     <template v-else>
-      <p v-if="source.text.length > preview.length" class="notice">
+      <UiNotice v-if="source.text.length > preview.length">
         仅预览前 100,000 个字符；导出保留完整已采集原文。
-      </p>
-      <p v-if="failed" class="notice">
+      </UiNotice>
+      <UiNotice v-if="failed" severity="info">
         高亮不可用，已切换到纯文本。
-      </p>
+      </UiNotice>
       <div v-if="html" class="raw-code" v-html="html" />
       <pre v-else class="raw-code raw-plain">{{ preview }}</pre>
     </template>

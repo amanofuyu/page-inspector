@@ -5,6 +5,8 @@ import { ChevronRight, Download, RefreshCw } from '@lucide/vue'
 import { computed } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiDisclosure from '@/components/ui/UiDisclosure.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import { formatBytes as size } from '../inspector/format'
 import WatchButton from '../inspector/WatchButton.vue'
 import { formatPath } from '../query/path'
@@ -56,11 +58,13 @@ const rows = computed(() => [...props.analysis?.rows ?? []].sort((a, b) => props
     <p class="feature-caption">
       算法 {{ analysis.algorithm }} · {{ analysis.coverage.status === 'complete' ? '完整分析' : '部分分析' }} · {{ analysis.durationMs.toFixed(0) }} ms。字段独立估算，不可相加，也不代表压缩传输字节。
     </p>
-    <p v-if="analysis.coverage.reasons.length" class="notice notice-warning">
+    <UiNotice v-if="analysis.coverage.reasons.length" severity="warning">
       {{ analysis.coverage.reasons.join('；') }}
-    </p>
+    </UiNotice>
     <div class="feature-toolbar">
-      <label class="toolbar-field"><span class="toolbar-field-label">字段排名</span><select :value="rankingSort" class="select select-sm" aria-label="排名排序" @change="emit('update:rankingSort', ($event.target as HTMLSelectElement).value as RankingSort)"><option value="size">估算体积</option><option value="items">项数</option><option value="path">路径</option></select></label><UiActionButton :disabled="!ready" size="sm" @click="emit('export')">
+      <div class="toolbar-field">
+        <span class="toolbar-field-label">字段排名</span><UiSelect :model-value="rankingSort" label="排名排序" :items="[{ value: 'size', label: '估算体积' }, { value: 'items', label: '项数' }, { value: 'path', label: '路径' }] as const" @update:model-value="emit('update:rankingSort', $event)" />
+      </div><UiActionButton :disabled="!ready" size="sm" @click="emit('export')">
         <Download :size="14" aria-hidden="true" />导出分析报告
       </UiActionButton>
     </div>

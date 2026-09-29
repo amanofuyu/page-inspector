@@ -8,6 +8,7 @@
   color: var(--color-base-content);
   font-size: var(--font-size-xs);
   line-height: 1.5;
+  white-space: pre-line;
   overflow-wrap: anywhere;
   box-shadow: var(--glass-shadow);
 }
@@ -26,21 +27,152 @@
 .ui-disclosure-trigger[data-state='open'] > .disclosure-chevron {
   transform: rotate(90deg);
 }
-.ui-disclosure-content[data-state='open'] {
-  animation: ui-disclosure-open var(--motion-resize) var(--motion-ease);
+.ui-tab-list button {
+  position: relative;
+  isolation: isolate;
 }
-@keyframes ui-disclosure-open {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.ui-tab-indicator {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--inspector-emphasis) 20%, transparent);
+  border-radius: inherit;
+  background: var(--tab-active);
+  box-shadow: inset 0 1px 0 var(--glass-glint);
+  pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .ui-disclosure-content[data-state='open'] {
-    animation: none;
-  }
+.inspector-shell .ui-tab-list button[data-selected] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+[data-motion-presence='leave'] {
+  pointer-events: none;
+}
+
+/* 所有选择器共用触发按钮和浮层，浮层传送后仍通过主题变量取色。 */
+.ui-select {
+  display: inline-block;
+  min-width: 0;
+  vertical-align: middle;
+}
+.ui-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--inspector-line);
+  border-radius: 6px;
+  background: var(--control-surface);
+  color: var(--color-base-content);
+  box-shadow: inset 0 1px 0 var(--glass-glint);
+  font-size: var(--font-size-xs);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out,
+    box-shadow var(--motion-fast) ease-out;
+}
+.ui-select[data-size='xs'] .ui-select-trigger {
+  height: 30px;
+}
+.ui-select-trigger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--inspector-emphasis) 40%, var(--inspector-line));
+  background: var(--action-hover);
+}
+.ui-select-trigger:focus-visible,
+.ui-select-trigger[data-state='open'] {
+  border-color: var(--inspector-emphasis);
+  outline: 2px solid var(--inspector-emphasis);
+  outline-offset: 2px;
+}
+.ui-select-trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ui-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-select-icon,
+.ui-select-indicator,
+.ui-select-check {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+.ui-select-indicator {
+  color: var(--inspector-muted);
+  transition: transform var(--motion-feedback) var(--motion-ease);
+}
+.ui-select-indicator[data-state='open'] {
+  transform: rotate(180deg);
+}
+.ui-select-icon-only {
+  width: 32px;
+  flex: none;
+}
+.ui-select-icon-only .ui-select-trigger {
+  justify-content: center;
+  padding: 0;
+}
+.ui-select-positioner {
+  z-index: 110;
+}
+.ui-select-content {
+  min-width: min(140px, var(--available-width));
+  max-width: min(360px, var(--available-width));
+  max-height: min(280px, var(--available-height));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--action-border);
+  border-radius: 8px;
+  outline: none;
+  background: var(--glass-solid);
+  color: var(--color-base-content);
+  box-shadow: var(--glass-shadow);
+  font-size: var(--font-size-xs);
+  transform-origin: var(--transform-origin);
+}
+.ui-select-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--motion-fast) ease-out;
+}
+.ui-select-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ui-select-item[data-highlighted] {
+  background: var(--action-hover);
+}
+.ui-select-item[data-state='checked'] {
+  color: var(--inspector-emphasis);
+  background: var(--tab-active);
+  font-weight: 600;
+}
+.ui-select-item[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ui-select-check {
+  margin-inline-start: auto;
 }
 .data-tab-panel {
   display: flex;
@@ -106,4 +238,258 @@
 .ui-split-handle:focus-visible > .ui-split-indicator,
 .ui-split-handle[data-dragging] > .ui-split-indicator {
   background: var(--inspector-emphasis);
+}
+
+/* 输入控件共用边框、焦点、禁用状态；原生输入保留表单和输入法行为。 */
+.ui-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--inspector-line);
+  border-radius: 6px;
+  background: var(--control-surface);
+  color: var(--color-base-content);
+  box-shadow: inset 0 1px 0 var(--glass-glint);
+  font-size: var(--font-size-xs);
+  transition:
+    border-color var(--motion-fast) ease-out,
+    box-shadow var(--motion-fast) ease-out;
+}
+.ui-search-input {
+  flex: 1;
+}
+.ui-input input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+}
+.ui-input input::placeholder,
+.ui-input-leading {
+  color: var(--inspector-muted);
+}
+.ui-input-leading {
+  display: flex;
+  flex: none;
+}
+.ui-input input::-webkit-search-cancel-button,
+.ui-input input::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+.ui-input:not([data-disabled]):hover {
+  border-color: color-mix(in srgb, var(--inspector-emphasis) 40%, var(--inspector-line));
+}
+.ui-input:focus-within {
+  border-color: var(--inspector-emphasis);
+  outline: 2px solid var(--inspector-emphasis);
+  outline-offset: 2px;
+}
+.ui-input[data-invalid] {
+  border-color: var(--color-error);
+  outline-color: var(--color-error);
+}
+.ui-input[data-disabled],
+.ui-checkbox[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ui-input input:disabled {
+  cursor: not-allowed;
+}
+.inspector-shell .ui-input-clear {
+  flex: none;
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
+  margin-inline-end: -6px;
+}
+.ui-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.ui-checkbox-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ui-checkbox-box {
+  position: relative;
+  display: flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.ui-checkbox input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.ui-checkbox-control {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--action-border);
+  border-radius: 4px;
+  background: var(--control-surface);
+  color: var(--color-primary-content);
+  pointer-events: none;
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+}
+.ui-checkbox-control svg {
+  opacity: 0;
+  transform: scale(0.7);
+  transition:
+    opacity var(--motion-fast) ease-out,
+    transform var(--motion-fast) var(--motion-ease);
+}
+.ui-checkbox input:checked + .ui-checkbox-control {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+.ui-checkbox input:checked + .ui-checkbox-control svg {
+  opacity: 1;
+  transform: scale(1);
+}
+.ui-checkbox input:focus-visible + .ui-checkbox-control {
+  outline: 2px solid var(--inspector-emphasis);
+  outline-offset: 2px;
+}
+.ui-checkbox:not([data-disabled]):hover .ui-checkbox-control {
+  border-color: var(--inspector-emphasis);
+}
+.watch-button-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.watch-button-content > svg {
+  flex: none;
+}
+
+/* 提示的视觉等级与朗读优先级分开，警告不会因 role="alert" 被染成错误色。 */
+.ui-notice {
+  --notice-accent: var(--color-info);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--notice-accent) 24%, var(--inspector-line));
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, var(--glass-glint), transparent 70%),
+    color-mix(in srgb, var(--notice-accent) 5%, var(--glass-surface));
+  box-shadow: inset 0 1px 0 var(--glass-glint);
+  color: var(--color-base-content);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.ui-notice.notice-warning {
+  --notice-accent: var(--color-warning);
+}
+.ui-notice.notice-error {
+  --notice-accent: var(--color-error);
+}
+.ui-notice-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--notice-accent);
+}
+.ui-notice-content {
+  flex: 1;
+  min-width: 0;
+}
+.ui-notice-title {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.ui-notice-content > p + p {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--notice-accent) 16%, transparent);
+}
+.ui-notice .btn {
+  max-width: 100%;
+  white-space: normal;
+  vertical-align: middle;
+}
+.ui-notice-actions,
+.ui-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ui-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 36px 16px;
+  text-align: center;
+}
+.ui-empty-state.empty-state {
+  gap: 12px;
+  padding: 38px 20px 44px;
+}
+.ui-empty-state.ui-empty-inline {
+  align-items: flex-start;
+  padding: 8px 0;
+  text-align: start;
+}
+.empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 5px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--tab-active), var(--glass-surface));
+  box-shadow: inset 0 1px 0 var(--glass-glint);
+  color: var(--inspector-emphasis);
+}
+.empty-state-error .empty-state-icon {
+  color: var(--color-error);
+}
+.ui-empty-state h2 {
+  font-size: var(--font-size-lg);
+  font-weight: 550;
+  letter-spacing: -0.3px;
+}
+.ui-empty-description {
+  max-width: 100%;
+  font-size: var(--font-size-xs);
+  line-height: 1.9;
+  color: var(--inspector-muted);
+  overflow-wrap: anywhere;
+}
+.ui-empty-actions {
+  justify-content: center;
 }

@@ -4,6 +4,8 @@ import type { SavedQuery } from '../watch/model'
 import type { QueryResult, QuerySpec } from './engine'
 import { ChevronRight } from '@lucide/vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import WatchButton from '../inspector/WatchButton.vue'
 import QueryConditionEditor from './components/QueryConditionEditor.vue'
 import { formatPath } from './path'
@@ -51,11 +53,11 @@ const emit = defineEmits<{
       执行查询
     </UiActionButton>
   </div>
-  <p v-if="queryError" class="query-error" role="alert">
+  <UiNotice v-if="queryError" class="query-error" role="alert" severity="error">
     查询失败：{{ queryError }}
-  </p>
+  </UiNotice>
   <div class="favorite-editor">
-    <input :value="queryName" class="input input-sm" aria-label="查询名称" placeholder="查询名称" @input="emit('update:queryName', ($event.target as HTMLInputElement).value)"><UiActionButton :disabled="!canSave" size="sm" @click="emit('save')">
+    <UiInput :model-value="queryName" label="查询名称" placeholder="查询名称" @update:model-value="emit('update:queryName', $event)" /><UiActionButton :disabled="!canSave" size="sm" @click="emit('save')">
       收藏条件
     </UiActionButton>
   </div>

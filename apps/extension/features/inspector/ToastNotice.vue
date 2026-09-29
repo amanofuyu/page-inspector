@@ -3,6 +3,7 @@ import type { ToastMessage, ToastPauseReason } from '@/composables/useToast'
 import { CircleCheck, CircleX, Info, TriangleAlert, X } from '@lucide/vue'
 import { ref, watch } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiPresence from '@/components/ui/UiPresence.vue'
 
 const props = defineProps<{ toast: ToastMessage | null }>()
 const emit = defineEmits<{
@@ -40,17 +41,11 @@ function dismiss() {
     previousFocus.focus({ preventScroll: true })
   emit('dismiss')
 }
-function leave(element: Element) {
-  element.setAttribute('inert', '')
-}
-function restore(element: Element) {
-  element.removeAttribute('inert')
-}
 </script>
 
 <template>
   <div ref="region" class="toast-region" role="status" aria-live="polite" aria-atomic="true">
-    <Transition name="toast" @before-leave="leave" @after-leave="restore" @leave-cancelled="restore">
+    <UiPresence preset="toast">
       <div v-if="toast" class="inspector-toast" :data-kind="toast.kind" @mouseenter="emit('pause', 'pointer')" @mouseleave="emit('resume', 'pointer')" @focusin="emit('pause', 'focus')" @focusout="syncInteraction" @keydown.esc.stop.prevent="dismiss">
         <span class="sr-only">{{ appearances[toast.kind].label }}：</span>
         <component :is="appearances[toast.kind].icon" class="toast-icon" :size="18" aria-hidden="true" />
@@ -61,6 +56,6 @@ function restore(element: Element) {
           <X :size="14" aria-hidden="true" />
         </UiActionButton>
       </div>
-    </Transition>
+    </UiPresence>
   </div>
 </template>

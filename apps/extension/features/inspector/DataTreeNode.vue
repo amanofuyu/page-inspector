@@ -5,6 +5,8 @@ import type { DataNode } from '@/features/nuxt/format'
 import { ChevronRight, Copy, Info, Link } from '@lucide/vue'
 import { ref } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiEmptyState from '@/components/ui/UiEmptyState.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import { formatPath } from '@/features/query/path'
 import ExpandTransition from './ExpandTransition.vue'
 import { useFieldActions } from './useFieldActions'
@@ -46,7 +48,7 @@ function copy(pathOnly: boolean) {
           <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" />
         </button>
         <span v-else class="tree-expand-placeholder" aria-hidden="true">·</span>
-        <button class="tree-main tree-select" :aria-pressed="selectedPath === node.path" :aria-label="`字段详情 ${node.path}`" title="字段详情" @click="emit('select', node)">
+        <button class="tree-main tree-select" :aria-pressed="selectedPath === node.path" :aria-label="`字段详情 ${node.path}`" @click="emit('select', node)">
           <span class="tree-content">
             <span class="tree-key" :title="node.path">{{ node.key }}</span>
             <span class="tree-value" :title="node.reference">{{ node.preview }}</span>
@@ -89,13 +91,12 @@ function copy(pathOnly: boolean) {
         <UiActionButton v-if="node.children.length > limit" class="my-1" @click="limit += 100">
           再显示 100 项（剩余 {{ node.children.length - limit }} 项）
         </UiActionButton>
-        <p v-if="!node.children.length && !node.truncated" class="tree-hint">
+        <UiEmptyState v-if="!node.children.length && !node.truncated" size="inline" role="note">
           空集合
-        </p>
-        <p v-if="node.truncated" class="tree-limit-hint">
-          <Info :size="14" aria-hidden="true" />
-          <span>已达到展示上限，完整已采集内容请导出原文。</span>
-        </p>
+        </UiEmptyState>
+        <UiNotice v-if="node.truncated" class="tree-limit-hint" severity="warning" role="note">
+          已达到展示上限，完整已采集内容请导出原文。
+        </UiNotice>
       </div>
     </ExpandTransition>
   </div>

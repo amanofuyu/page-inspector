@@ -1,7 +1,10 @@
 <script lang="ts" setup>
-import { Braces, ChartNoAxesColumnIncreasing, CircleAlert, Globe, Network, ScanLine, Search, Star } from '@lucide/vue'
+import { Braces, ChartNoAxesColumnIncreasing, Globe, Network, ScanLine, Search, Star } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiEmptyState from '@/components/ui/UiEmptyState.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import UiTabPanel from '@/components/ui/UiTabPanel.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import { useArtifactActions } from '@/composables/useArtifactActions'
@@ -106,46 +109,46 @@ watch([result, view, resetRevision], dismissNotice)
       <UiTabPanel :value="activeFeature">
         <main class="inspector-main" :class="{ 'data-main': activeFeature === 'data' && application && parsed }">
           <div v-if="activeFeature !== 'seo'" class="inspector-context" :class="{ 'is-empty': activeFeature === 'data' && !application }">
-            <p v-if="pageStatus === 'error' && result && !responseOverride" class="notice notice-warning refresh-error" role="alert">
+            <UiNotice v-if="pageStatus === 'error' && result && !responseOverride" class="refresh-error" role="alert" severity="warning">
               重新读取失败，仍显示上次结果：{{ message }}
-            </p>
-            <section v-if="status === 'loading'" class="empty-state glass-card" role="status">
-              <span class="empty-state-icon"><span class="loading loading-spinner loading-md" /></span>
-              <h2>正在读取页面数据</h2>
-              <p>检测内嵌数据并读取页面声明的外部 payload。</p>
-            </section>
-            <section v-else-if="status === 'error'" class="empty-state empty-state-error glass-card" role="alert">
-              <span class="empty-state-icon"><CircleAlert :size="28" :stroke-width="1.5" aria-hidden="true" /></span>
-              <h2>暂时无法读取</h2>
-              <p>{{ message }}</p>
-              <UiActionButton size="sm" variant="primary" @click="refresh">
-                重试
-              </UiActionButton>
-            </section>
-            <section v-else-if="status === 'empty'" class="empty-state glass-card">
-              <span class="empty-state-icon"><ScanLine :size="28" :stroke-width="1.5" aria-hidden="true" /></span>
-              <h2>未检测到 Nuxt 数据</h2>
-              <p>当前文档中没有支持的 Nuxt JSON payload 节点。页面加载完成后可重新读取。</p>
-            </section>
+            </UiNotice>
+            <UiEmptyState v-if="status === 'loading'" class="glass-card" size="panel" kind="loading" title="正在读取页面数据">
+              检测内嵌数据并读取页面声明的外部 payload。
+            </UiEmptyState>
+            <UiEmptyState v-else-if="status === 'error'" class="glass-card" size="panel" kind="error" title="暂时无法读取">
+              {{ message }}
+              <template #actions>
+                <UiActionButton size="sm" variant="primary" @click="refresh">
+                  重试
+                </UiActionButton>
+              </template>
+            </UiEmptyState>
+            <UiEmptyState v-else-if="status === 'empty'" class="glass-card" size="panel" title="未检测到 Nuxt 数据">
+              <template #icon>
+                <ScanLine :size="28" :stroke-width="1.5" />
+              </template>
+              当前文档中没有支持的 Nuxt JSON payload 节点。页面加载完成后可重新读取。
+            </UiEmptyState>
             <template v-else-if="application && parsed">
-              <p v-if="snapshotWarning && !responseOverride" class="notice notice-warning" role="status">
+              <UiNotice v-if="snapshotWarning && !responseOverride" role="status" severity="warning">
                 {{ snapshotWarning }}
-              </p>
-              <p v-for="warning in snapshot?.warnings" :key="warning" class="notice notice-warning">
+              </UiNotice>
+              <UiNotice v-for="warning in snapshot?.warnings" :key="warning" severity="warning">
                 {{ warning }}
-              </p>
-              <label v-if="snapshot && snapshot.apps.length > 1" class="field-label">
+              </UiNotice>
+              <div v-if="snapshot && snapshot.apps.length > 1" class="field-label">
                 应用
-                <select v-model="appIndex" class="select select-sm w-full">
-                  <option v-for="(app, index) in snapshot.apps" :key="app.id" :value="index">{{ app.label }}</option>
-                </select>
-              </label>
+                <UiSelect v-model="appIndex" :items="snapshot.apps.map((app, index) => ({ value: index, label: app.label }))" class="w-full" label="应用" />
+              </div>
             </template>
-            <p v-if="responseOverride" class="notice notice-warning">
-              当前查看显式选择的浏览器响应。<UiActionButton @click="returnToPageSnapshot">
-                返回页面快照
-              </UiActionButton>
-            </p>
+            <UiNotice v-if="responseOverride" severity="warning">
+              当前查看显式选择的浏览器响应。
+              <template #actions>
+                <UiActionButton @click="returnToPageSnapshot">
+                  返回页面快照
+                </UiActionButton>
+              </template>
+            </UiNotice>
           </div>
           <NetworkView v-if="networkSession" :session="networkSession" :revision="networkRevision" :startup-error="networkError" :active="activeFeature === 'network'" :snapshot="result?.snapshot" :app="result?.snapshot?.apps[appIndex]" :document-id="result?.documentId" :tab-id="targetTabId" @inspect="inspectNetwork" @candidate="network.toggleCandidate" @preserve="network.setPreserve" @read="network.read" @copy="network.copyUrl" @clear="network.clear" @reload="network.reload" />
           <SeoView v-if="seoVisited" :active="activeFeature === 'seo'" :dom="seoDom" :html="seoHtml" :status="seoStatus" :error="seoError" :source-notice="seoSourceNotice" :can-capture="!!networkSession" @refresh="refreshSeo" @reload="reloadAndCapture" @cancel="cancelSeo" @copy="seoActions.copy" @export="seoActions.download" />

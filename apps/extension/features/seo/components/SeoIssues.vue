@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SeoIssue } from '../model'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiEmptyState from '@/components/ui/UiEmptyState.vue'
 
 defineProps<{ issues: readonly SeoIssue[] }>()
 const emit = defineEmits<{ locate: [key: string] }>()
@@ -8,9 +9,9 @@ const emit = defineEmits<{ locate: [key: string] }>()
 
 <template>
   <div class="seo-issues">
-    <p v-if="!issues.length" class="empty-section">
+    <UiEmptyState v-if="!issues.length">
       当前筛选范围内没有问题；不代表保证收录或通过全部富结果验证。
-    </p>
+    </UiEmptyState>
     <article
       v-for="issue in issues"
       :key="issue.id"

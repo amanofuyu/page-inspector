@@ -154,8 +154,8 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
 
     // 返回页面快照时还原先前选择的应用，不能被独立响应的应用下标覆盖。
     await website.goto('http://127.0.0.1:4318/multi')
-    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.field-label > select > option').length)).toBe(2)
-    await panel.select('.field-label > select', '1')
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.field-label select > option').length)).toBe(2)
+    await panel.select('[role="combobox"][aria-label="应用"]', '1')
     await clickText(panel, '网络', '.workspace-tabs')
     await website.evaluate(async () => {
       await fetch('/_payload.json?independent=2')
@@ -167,7 +167,7 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     await clickText(panel, '作为独立 payload 查看')
     await expect.poll(() => panel.text()).toContain('当前查看显式选择的浏览器响应')
     await clickText(panel, '返回页面快照')
-    expect(await panel.evaluate(() => document.querySelector<HTMLSelectElement>('.field-label > select')?.value)).toBe('1')
+    expect(await panel.evaluate(() => document.querySelector('[role="combobox"][aria-label="应用"]')?.getAttribute('data-value'))).toBe('1')
     expect(panel.exceptions).toEqual([])
     await writeFile(testInfo.outputPath('probe.json'), JSON.stringify({ browser: context.browser()?.version(), extensionId, inspectedTabId: tabId, panelUrl: `chrome-extension://${extensionId}/inspector-panel.html`, realDevTools: true }, null, 2))
   }

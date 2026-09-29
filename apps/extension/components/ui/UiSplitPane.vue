@@ -3,6 +3,7 @@ import type { UiSplitPaneSize } from './split-pane'
 import { Splitter, useSplitter } from '@ark-ui/vue/splitter'
 import { useElementSize } from '@vueuse/core'
 import { computed, nextTick, useTemplateRef, watch } from 'vue'
+import UiTooltip from './UiTooltip.vue'
 
 const props = withDefaults(defineProps<{
   label: string
@@ -80,16 +81,17 @@ function resize(sizes: number[]) {
         <slot />
       </Splitter.Panel>
       <template v-if="secondaryVisible">
-        <Splitter.ResizeTrigger
-          id="primary:secondary"
-          class="ui-split-handle"
-          :aria-label="label"
-          :aria-orientation="orientation === 'horizontal' ? 'vertical' : 'horizontal'"
-          :aria-valuetext="`主面板 ${Math.round(size[0]!)}%`"
-          :title="`${label}：拖动或使用${orientation === 'horizontal' ? '左右' : '上下'}方向键调整`"
-        >
-          <Splitter.ResizeTriggerIndicator class="ui-split-indicator" />
-        </Splitter.ResizeTrigger>
+        <UiTooltip :trigger-id="splitter.getResizeTriggerProps({ id: 'primary:secondary' }).id" :content="`${label}：拖动或使用${orientation === 'horizontal' ? '左右' : '上下'}方向键调整`">
+          <Splitter.ResizeTrigger
+            id="primary:secondary"
+            class="ui-split-handle"
+            :aria-label="label"
+            :aria-orientation="orientation === 'horizontal' ? 'vertical' : 'horizontal'"
+            :aria-valuetext="`主面板 ${Math.round(size[0]!)}%`"
+          >
+            <Splitter.ResizeTriggerIndicator class="ui-split-indicator" />
+          </Splitter.ResizeTrigger>
+        </UiTooltip>
         <Splitter.Panel id="secondary" class="ui-split-panel">
           <slot name="secondary" />
         </Splitter.Panel>

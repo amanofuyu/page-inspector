@@ -3,6 +3,7 @@ import { Info, RefreshCw } from '@lucide/vue'
 import { computed } from 'vue'
 import ThemeController from '@/components/theme-controller.vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiTooltip from '@/components/ui/UiTooltip.vue'
 
 const props = defineProps<{ pageTitle: string, currentUrl: string, contextOpen: boolean, refreshing: boolean }>()
 const emit = defineEmits<{ context: [], refresh: [] }>()
@@ -23,7 +24,9 @@ const pageAddress = computed(() => {
       <img class="brand-icon" src="/icon.svg" width="24" height="24" alt="" aria-hidden="true">
       <h1>Page Inspector</h1>
     </div>
-    <span class="header-address" :title="`${pageTitle}\n${currentUrl}`">{{ pageAddress }}</span>
+    <UiTooltip :content="`${pageTitle}\n${currentUrl}`">
+      <span class="header-address" tabindex="0">{{ pageAddress }}</span>
+    </UiTooltip>
     <div class="header-controls">
       <UiActionButton icon-only label="页面与数据来源" :aria-expanded="contextOpen" aria-haspopup="dialog" aria-controls="page-context" @click="emit('context')">
         <Info :size="15" aria-hidden="true" />

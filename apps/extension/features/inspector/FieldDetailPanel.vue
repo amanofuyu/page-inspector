@@ -6,6 +6,8 @@ import type { ToastInput } from '@/composables/useToast'
 import { PanelRightClose } from '@lucide/vue'
 import { computed } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiEmptyState from '@/components/ui/UiEmptyState.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import { formatPath } from '../query/path'
 import DataTreeNode from './DataTreeNode.vue'
 import FieldCopyActions from './FieldCopyActions.vue'
@@ -59,15 +61,15 @@ const fullValue = computed(() => {
         <p class="mono break-text">
           {{ node.fieldPath ? formatPath(node.fieldPath) : node.path }}
         </p>
-        <p v-if="loading" class="feature-caption" role="status">
+        <UiEmptyState v-if="loading" size="inline" kind="loading">
           正在读取字段…
-        </p>
-        <p v-else-if="error" class="notice notice-warning" role="alert">
+        </UiEmptyState>
+        <UiNotice v-else-if="error" role="alert" severity="warning">
           {{ error }}
-        </p>
-        <p v-else-if="detail && !detail.tree" class="notice notice-warning">
+        </UiNotice>
+        <UiNotice v-else-if="detail && !detail.tree" severity="warning">
           {{ detail.known ? '字段不存在，以下保留当前分类中的展示值。' : '索引未覆盖此路径，以下仅展示当前分类中的数据。' }}
-        </p>
+        </UiNotice>
         <div class="detail-actions">
           <FieldCopyActions v-if="currentNode" :node="currentNode" :loading="loading" @notice="emit('notice', $event)" />
           <WatchButton v-if="canWatch && fieldPath" :path="fieldPath" :watched="watchedPaths.has(formatPath(fieldPath))" :busy="pendingWatchPaths.has(formatPath(fieldPath))" @toggle="emit('watch', $event)" />
@@ -97,12 +99,12 @@ const fullValue = computed(() => {
       </div><p class="mono break-text">
         {{ formatPath(path) }}
       </p>
-      <p v-if="loading" class="feature-caption" role="status">
+      <UiEmptyState v-if="loading" size="inline" kind="loading">
         正在读取字段…
-      </p>
-      <p v-else-if="error" class="notice notice-warning" role="alert">
+      </UiEmptyState>
+      <UiNotice v-else-if="error" role="alert" severity="warning">
         {{ error }}
-      </p>
+      </UiNotice>
       <template v-else-if="detail">
         <p class="feature-caption">
           {{ detail.sourceIds.length > 1 ? '同名顶层字段曾被覆盖，最后一份为当前来源：' : '字段来源：' }}{{ sourceLabels.join(' → ') }}
@@ -111,9 +113,9 @@ const fullValue = computed(() => {
           <FieldCopyActions v-if="detail.tree" :node="detail.tree.root" :loading="loading" @notice="emit('notice', $event)" />
           <WatchButton :path="detail.path" :watched="watchedPaths.has(formatPath(detail.path))" :busy="pendingWatchPaths.has(formatPath(detail.path))" label="关注此字段" @toggle="emit('watch', $event)" />
         </div>
-        <DataTreeNode v-if="detail.tree" :key="formatPath(detail.path)" :node="detail.tree.root" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" initial-open @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" /><p v-else class="feature-caption">
+        <DataTreeNode v-if="detail.tree" :key="formatPath(detail.path)" :node="detail.tree.root" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" initial-open @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" /><UiEmptyState v-else size="inline">
           {{ detail.known ? '字段不存在。' : '索引未覆盖此路径，无法确认。' }}
-        </p><p v-if="detail.tree?.truncated" class="feature-caption">
+        </UiEmptyState><p v-if="detail.tree?.truncated" class="feature-caption">
           局部视图达到 10,000 节点／60 层限制。
         </p>
       </template>

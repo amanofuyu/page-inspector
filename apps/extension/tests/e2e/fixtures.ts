@@ -92,11 +92,18 @@ export class SidePanel {
   }
 
   async select(selector: string, value: string) {
-    await this.evaluate(({ query, next }) => {
-      const element = document.querySelector<HTMLSelectElement>(query)!
-      element.value = next
-      element.dispatchEvent(new Event('change', { bubbles: true }))
-    }, { query: selector, next: value })
+    await this.click(selector)
+    let optionSelector = ''
+    await expect.poll(async () => {
+      optionSelector = await this.evaluate(({ query, next }) => {
+        const trigger = document.querySelector(query)
+        const content = document.getElementById(trigger?.getAttribute('aria-controls') ?? '')
+        const option = Array.from(content?.querySelectorAll<HTMLElement>('[role="option"]') ?? []).find(item => item.dataset.optionValue === next)
+        return option ? `#${CSS.escape(option.id)}` : ''
+      }, { query: selector, next: value })
+      return optionSelector
+    }).not.toBe('')
+    await this.click(optionSelector)
   }
 
   async search(text: string) {

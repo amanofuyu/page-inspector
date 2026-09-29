@@ -4,8 +4,10 @@ import type { DataNode } from '../nuxt/format'
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { ToastInput } from '@/composables/useToast'
 import { RefreshCw } from '@lucide/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, defineComponent, ref, watch } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import { useArtifactActions } from '@/composables/useArtifactActions'
 import AnalysisView from '../analysis/AnalysisView.vue'
 import { analysisReport } from '../analysis/report'
@@ -35,6 +37,9 @@ const props = defineProps<{
 const emit = defineEmits<{ notice: [notice: ToastInput] }>()
 const notice = (value: ToastInput) => emit('notice', value)
 const surface = ref<HTMLElement | null>(null)
+const scrollPositions = new Map<string, number>()
+// 插槽本身是片段，用有状态组件承接后 KeepAlive 才会缓存其中的数据树。
+const DataPage = defineComponent({ name: 'WorkbenchDataPage', setup: (_, { slots }) => () => slots.default?.() })
 const input = { app: () => props.app, snapshot: () => props.snapshot, tabId: () => props.tabId, status: () => props.status }
 const index = useWorkbenchIndex(input)
 const { ready, pending, error, sourceMode, scope, snapshotKey } = index
@@ -107,14 +112,18 @@ watch(snapshotKey, () => {
 }, { immediate: true })
 watch(() => props.active, (value, previous) => {
   if (value !== previous) {
+    if (surface.value)
+      scrollPositions.set(previous, surface.value.scrollTop)
     closeDetail()
-    surface.value?.scrollTo({ top: 0 })
   }
   if (value === 'data')
     sourceMode.value = null
   if (value === 'analysis' && !analysis.value)
     void analysisSession.analyze()
 }, { flush: 'sync' })
+watch(() => props.active, (value) => {
+  surface.value?.scrollTo({ top: scrollPositions.get(value) ?? 0, behavior: 'instant' })
+}, { flush: 'post' })
 watch([() => props.dataNode, () => props.dataDetailVisible, () => props.active, ready], () => {
   if (props.active !== 'data')
     return
@@ -128,7 +137,9 @@ watch([() => props.dataNode, () => props.dataDetailVisible, () => props.active, 
 <template>
   <section v-show="(active === 'data' && !!app && status === 'ready') || ['analysis', 'query', 'watch'].includes(active)" ref="surface" class="feature-card glass-card" :class="{ 'data-workbench': active === 'data' }" aria-label="扩展工作区">
     <div v-if="active !== 'data'" class="feature-toolbar">
-      <label class="toolbar-field"><span class="toolbar-field-label">分析范围</span><select v-model="sourceMode" class="select select-sm" aria-label="分析来源"><option :value="null">合并后的应用</option><option v-for="(item, position) in app?.sources" :key="position" :value="position">来源 {{ position + 1 }} · {{ item.kind === 'inline' ? '内嵌' : '外部' }}</option></select></label>
+      <div class="toolbar-field">
+        <span class="toolbar-field-label">分析范围</span><UiSelect v-model="sourceMode" label="分析来源" :items="[{ value: null, label: '合并后的应用' }, ...(app?.sources ?? []).map((item, position) => ({ value: position, label: `来源 ${position + 1} · ${item.kind === 'inline' ? '内嵌' : '外部'}` }))]" />
+      </div>
       <UiActionButton v-if="pending" label="取消任务" size="sm" @click="index.cancel">
         取消任务
       </UiActionButton>
@@ -139,23 +150,27 @@ watch([() => props.dataNode, () => props.dataDetailVisible, () => props.active, 
     <p v-if="active !== 'data'" class="feature-caption" role="status">
       {{ pending ? '正在处理…' : ready ? `索引 ${ready.coverage.scanned.toLocaleString()} 个节点 · ${ready.coverage.status === 'complete' ? '完整' : '部分覆盖'}` : error || '等待数据' }}<span v-if="ready?.coverage.reasons.length"> · {{ ready.coverage.reasons.join('；') }}</span>
     </p>
-    <p v-if="storageNotice" class="notice notice-warning">
+    <UiNotice v-if="storageNotice" severity="warning">
       {{ storageNotice }}
-    </p>
+    </UiNotice>
     <div class="feature-columns">
       <div v-resize-motion="`${active}:${spec.conditions.length}:${results?.total}:${results?.offset}:${watches.length}`" class="feature-primary">
-        <slot v-if="active === 'data'" name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :data-detail="detailProps" :toggle-watch="toggleWatch" />
-        <AnalysisView v-if="active === 'analysis'" v-model:ranking-sort="rankingSort" :ready="ready" :pending="pending" :analysis="analysis" :detail-location="detailLocation" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @analyze="analyze" @export="exportAnalysis" @detail="toggleInlineDetail" @watch="toggleWatch">
-          <template #detail="{ location, id }">
-            <InlineFieldDetail :id="id" :location="location" :selected="detailLocation" :data="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
-          </template>
-        </AnalysisView>
-        <QueryView v-else-if="active === 'query'" v-model:spec="spec" v-model:query-name="queryName" :ready="!!ready" :pending="pending" :can-save="!!scope" :query-error="queryError" :favorites="favorites" :results="results" :source-labels="sourceLabels" :detail-location="detailLocation" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @query="query()" @page="query" @save="saveQuery" @remove="rules.removeRule" @export="exportQuery" @copy="artifacts.copy" @detail="toggleInlineDetail" @watch="toggleWatch">
-          <template #detail="{ location, id }">
-            <InlineFieldDetail :id="id" :location="location" :selected="detailLocation" :data="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
-          </template>
-        </QueryView>
-        <WatchView v-else-if="active === 'watch'" v-model:draft="watchDraft" :scope="scope" :watches="watches" :other-watches="otherWatches" :comparisons="comparisons" @add="addPath" @rename="rules.rename" @locate="locate" @remove="rules.removeRule" />
+        <KeepAlive :max="4">
+          <DataPage v-if="active === 'data'">
+            <slot name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :data-detail="detailProps" :toggle-watch="toggleWatch" />
+          </DataPage>
+          <AnalysisView v-else-if="active === 'analysis'" v-model:ranking-sort="rankingSort" :ready="ready" :pending="pending" :analysis="analysis" :detail-location="detailLocation" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @analyze="analyze" @export="exportAnalysis" @detail="toggleInlineDetail" @watch="toggleWatch">
+            <template #detail="{ location, id }">
+              <InlineFieldDetail :id="id" :location="location" :selected="detailLocation" :data="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
+            </template>
+          </AnalysisView>
+          <QueryView v-else-if="active === 'query'" v-model:spec="spec" v-model:query-name="queryName" :ready="!!ready" :pending="pending" :can-save="!!scope" :query-error="queryError" :favorites="favorites" :results="results" :source-labels="sourceLabels" :detail-location="detailLocation" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @query="query()" @page="query" @save="saveQuery" @remove="rules.removeRule" @export="exportQuery" @copy="artifacts.copy" @detail="toggleInlineDetail" @watch="toggleWatch">
+            <template #detail="{ location, id }">
+              <InlineFieldDetail :id="id" :location="location" :selected="detailLocation" :data="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
+            </template>
+          </QueryView>
+          <WatchView v-else-if="active === 'watch'" v-model:draft="watchDraft" :scope="scope" :watches="watches" :other-watches="otherWatches" :comparisons="comparisons" @add="addPath" @rename="rules.rename" @locate="locate" @remove="rules.removeRule" />
+        </KeepAlive>
       </div>
       <ExpandTransition>
         <FieldDetailPanel v-if="active !== 'data' && detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />

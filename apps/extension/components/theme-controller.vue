@@ -1,20 +1,17 @@
 <script setup lang="ts">
 import { Monitor, Moon, Sun } from '@lucide/vue'
+import UiSelect from '@/components/ui/UiSelect.vue'
 import { useTheme } from '@/composables/useTheme'
 
 defineProps<{ compact?: boolean }>()
 const { colorMode } = useTheme()
+const themes = [
+  { value: 'auto', label: '跟随系统', icon: Monitor },
+  { value: 'light', label: '浅色', icon: Sun },
+  { value: 'dark', label: '深色', icon: Moon },
+] as const
 </script>
 
 <template>
-  <label class="theme-picker" :class="{ 'theme-picker-compact': compact }" title="界面主题">
-    <Monitor v-if="colorMode === 'auto'" :size="14" aria-hidden="true" />
-    <Sun v-else-if="colorMode === 'light'" :size="14" aria-hidden="true" />
-    <Moon v-else :size="14" aria-hidden="true" />
-    <select v-model="colorMode" class="select select-xs" aria-label="界面主题">
-      <option value="auto">跟随系统</option>
-      <option value="light">浅色</option>
-      <option value="dark">深色</option>
-    </select>
-  </label>
+  <UiSelect v-model="colorMode" :items="themes" label="界面主题" :icon-only="compact" size="xs" class="theme-picker" />
 </template>

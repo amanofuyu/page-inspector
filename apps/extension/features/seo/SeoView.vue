@@ -2,6 +2,8 @@
 import type { SeoSnapshot } from './model'
 import { Download } from '@lucide/vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
+import UiEmptyState from '@/components/ui/UiEmptyState.vue'
+import UiNotice from '@/components/ui/UiNotice.vue'
 import UiTabList from '@/components/ui/UiTabList.vue'
 import UiTabPanel from '@/components/ui/UiTabPanel.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
@@ -38,17 +40,17 @@ const { filters, display, expanded, limit, issues, filtered, visibleIssues, chan
         <h2>页面 SEO</h2><span class="feature-caption">主文档 · 独立于 Nuxt payload</span>
       </div>
       <SeoToolbar :busy="status === 'loading'" :can-capture="canCapture" @refresh="emit('refresh', $event)" @reload="emit('reload')" @cancel="emit('cancel')" />
-      <p v-if="error" class="notice notice-warning" role="alert">
+      <UiNotice v-if="error" role="alert" severity="warning">
         {{ error }}<span v-if="dom"> 当前保留上次成功取得的数据，请注意采样时间。</span>
-      </p>
-      <p v-if="status === 'loading'" class="feature-caption" role="status">
+      </UiNotice>
+      <UiEmptyState v-if="status === 'loading'" size="inline" kind="loading">
         正在读取 SEO 数据…
-      </p>
+      </UiEmptyState>
       <template v-if="dom">
         <SeoSourceInfo :dom="dom" :html="html" :source-notice="sourceNotice" />
-        <p v-if="!dom.complete || (html && !html.complete)" class="notice notice-warning" role="status">
+        <UiNotice v-if="!dom.complete || (html && !html.complete)" role="status" severity="warning">
           采集仅部分完成，未发现的字段不代表不存在。
-        </p>
+        </UiNotice>
         <p class="seo-summary" role="status">
           {{ dom.fields.length }} 个 DOM 字段 · {{ changeCount }} 个已确认变化 · {{ issues.length }} 条问题与提示
         </p>
@@ -69,17 +71,17 @@ const { filters, display, expanded, limit, issues, filtered, visibleIssues, chan
               <p class="feature-caption" role="status">
                 {{ filtered.length }} 条匹配{{ !dom.complete ? ' · 仅覆盖已采集字段' : '' }}
               </p>
-              <p v-if="display === 'html' && !html" class="empty-section">
+              <UiEmptyState v-if="display === 'html' && !html">
                 尚未取得 HTML 基线。当前 DOM 字段仍可查看。
-              </p>
+              </UiEmptyState>
               <SeoFieldRow
                 v-for="row in filtered.slice(0, limit)" :key="row.id" :row="row" :display="display"
                 :open="expanded === row.id" :dom-complete="dom.complete" :html-complete="html?.complete"
                 @update:open="setExpanded(row.id, $event)" @copy="emit('copy', $event)"
               />
-              <p v-if="!filtered.length" class="empty-section">
+              <UiEmptyState v-if="!filtered.length">
                 当前筛选下没有匹配字段。
-              </p>
+              </UiEmptyState>
               <UiActionButton v-if="filtered.length > limit" size="sm" @click="limit += 50">
                 再显示 50 项
               </UiActionButton>
@@ -87,9 +89,9 @@ const { filters, display, expanded, limit, issues, filtered, visibleIssues, chan
           </div>
         </UiTabPanel>
       </template>
-      <p v-else-if="status !== 'loading' && !error" class="empty-section">
+      <UiEmptyState v-else-if="status !== 'loading' && !error">
         打开 HTTP(S) 页面后读取 SEO 数据。
-      </p>
+      </UiEmptyState>
     </section>
   </UiTabs>
 </template>

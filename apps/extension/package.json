@@ -27,6 +27,7 @@
     "@unhead/vue": "^3.4.1",
     "@webext-core/messaging": "^4.0.0",
     "devalue": "6.0.2",
+    "motion-v": "2.5.1",
     "parse5": "8.0.1"
   },
   "devDependencies": {

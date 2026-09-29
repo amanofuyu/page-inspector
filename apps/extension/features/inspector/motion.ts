@@ -1,7 +1,9 @@
 import type { ObjectDirective } from 'vue'
+import type { UiAnimation } from '@/libs/motion'
+import { animateUi, motionDuration } from '@/libs/motion'
 
 interface ResizeState {
-  animation?: Animation
+  animation?: UiAnimation
   from?: { height: number, width: number }
   preference: MediaQueryList
   stop: () => void
@@ -42,26 +44,22 @@ export const vResizeMotion: ObjectDirective<HTMLElement, unknown> = {
     const dimension = binding.modifiers.inline ? 'width' : 'height'
     if (state.preference.matches || !from[dimension] || !to[dimension]
       || Math.abs(from[dimension] - to[dimension]) < 1
-      || element.closest('.expand-enter-active, .expand-leave-active')) {
+      || element.closest('[data-motion-presence]')) {
       return
     }
-    const styles = getComputedStyle(element)
-    // 构建压缩可能把毫秒改写为秒，交给 Web Animations 前统一换算为毫秒。
-    const time = styles.getPropertyValue('--motion-resize').trim()
-    const duration = Number.parseFloat(time) * (time.endsWith('ms') ? 1 : 1000)
-    const animation = element.animate([
-      { [dimension]: `${from[dimension]}px`, overflow: 'clip' },
-      { [dimension]: `${to[dimension]}px`, overflow: 'clip' },
-    ], {
-      duration: Number.isFinite(duration) ? duration : 240,
-      easing: styles.getPropertyValue('--motion-ease').trim() || 'ease-out',
-    })
-    state.animation = animation
-    window.addEventListener('resize', state.stop, { once: true })
-    void animation.finished.then(() => {
-      if (state.animation === animation)
+    let completed = false
+    const animation = animateUi(element, { [dimension]: [`${from[dimension]}px`, `${to[dimension]}px`] }, {
+      duration: motionDuration.resize,
+      styles: { overflow: 'clip' },
+      onComplete() {
+        completed = true
         state.stop()
-    }).catch(() => {})
+      },
+    })
+    if (!completed) {
+      state.animation = animation
+      window.addEventListener('resize', state.stop, { once: true })
+    }
   },
   beforeUnmount(element) {
     const state = states.get(element)

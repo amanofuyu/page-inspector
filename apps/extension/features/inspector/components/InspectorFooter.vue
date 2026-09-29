@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiTabList from '@/components/ui/UiTabList.vue'
 
 defineProps<{ status: string, statusLabel: string, captureTime: string, contextOpen: boolean, renderLabel: string, totalBytes: number, sourceCount?: number }>()
@@ -13,9 +14,9 @@ function size(bytes: number) {
     <div class="app-footer">
       <span class="capture-status" :data-status="status" role="status"><span class="status-dot" aria-hidden="true" />{{ statusLabel }}</span>
       <span v-if="captureTime" class="capture-time">{{ captureTime }}</span>
-      <button v-if="sourceCount !== undefined" class="footer-source" :aria-expanded="contextOpen" aria-haspopup="dialog" aria-controls="page-context" :title="renderLabel" @click="emit('context')">
+      <UiActionButton v-if="sourceCount !== undefined" class="footer-source" :aria-expanded="contextOpen" aria-haspopup="dialog" aria-controls="page-context" :tooltip="renderLabel || '查看数据来源'" @click="emit('context')">
         {{ size(totalBytes) }} · {{ sourceCount }} 来源
-      </button>
+      </UiActionButton>
     </div>
     <UiTabList label="工作区" variant="workspace" />
   </footer>

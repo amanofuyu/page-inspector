@@ -124,14 +124,14 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
   await expect.poll(() => panel.text()).toContain('feature-lab')
   await panel.search('price')
   const treeButton = '#data-field-detail .watch-button'
-  await panel.click('.search-result [title="字段详情"]')
+  await panel.click('.search-result .tree-select')
   const pressed = (selector: string) => panel.evaluate(selector => document.querySelector(selector)?.getAttribute('aria-pressed'), selector)
   await expect.poll(() => pressed(treeButton)).toBe('false')
   await panel.click(treeButton)
   await expect.poll(() => pressed(treeButton)).toBe('true')
   expect(await panel.evaluate(selector => document.querySelector(`${selector} svg`)?.getAttribute('fill'), treeButton)).toBe('currentColor')
 
-  await panel.click('.search-result [title="字段详情"]')
+  await panel.click('.search-result .tree-select')
   await expect.poll(() => panel.evaluate(() => [...document.querySelectorAll('.field-detail .watch-button')].map(button => button.getAttribute('aria-pressed')))).toEqual(['true'])
   await clickText(panel, '检索', '.workspace-tabs')
   await fillField(panel, '[aria-label="条件 1 内容"]', 'feature-lab.watched.price')
@@ -147,7 +147,7 @@ test('关注按钮跨入口同步、重载恢复、存储变更与取消反馈',
   await panel.send('Page.reload')
   await expect.poll(() => panel.text()).toContain('feature-lab')
   await panel.search('price')
-  await panel.click('.search-result [title="字段详情"]')
+  await panel.click('.search-result .tree-select')
   await expect.poll(() => pressed(treeButton)).toBe('true')
   const saved = await panel.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([key]) => key.startsWith('inspector-definition/'))!) as [string, WatchRule]
   const worker = context.serviceWorkers()[0]!
@@ -176,10 +176,10 @@ test('来源减少后回到合并模式并恢复分析与检索', async ({ exten
   await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
   await panel.select('[aria-label="分析来源"]', '1')
   await expect.poll(() => panel.evaluate(() => document.querySelector('[aria-label="扩展工作区"] > [role="status"]')?.textContent)).toContain('完整')
-  expect(await panel.evaluate(() => document.querySelector<HTMLSelectElement>('[aria-label="分析来源"]')?.selectedIndex)).toBe(2)
+  expect(await panel.evaluate(() => document.querySelector('[aria-label="分析来源"][role="combobox"]')?.getAttribute('data-value'))).toBe('1')
   await website.goto(`${base}/features?version=1`)
   await expect.poll(() => panel.evaluate(() => document.querySelector('.ranking-list')?.textContent)).toContain('feature-lab')
-  expect(await panel.evaluate(() => document.querySelector<HTMLSelectElement>('[aria-label="分析来源"]')?.selectedIndex)).toBe(0)
+  expect(await panel.evaluate(() => document.querySelector('[aria-label="分析来源"][role="combobox"]')?.getAttribute('data-value'))).toBe('null')
   expect(await panel.text()).not.toContain('内容为空')
   await clickText(panel, '重建索引')
   await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
