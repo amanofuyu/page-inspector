@@ -1,0 +1,109 @@
+/* 基础组件仅依赖全局主题变量，浮层传送到 body 后仍沿用当前主题。 */
+.ui-tooltip {
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 6px 9px;
+  border: 1px solid var(--inspector-line);
+  border-radius: 6px;
+  background: var(--glass-solid);
+  color: var(--color-base-content);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  box-shadow: var(--glass-shadow);
+}
+[data-scope='tooltip'][data-part='positioner'] {
+  z-index: 100;
+}
+.ui-disclosure-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 0;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-disclosure-trigger[data-state='open'] > .disclosure-chevron {
+  transform: rotate(90deg);
+}
+.ui-disclosure-content[data-state='open'] {
+  animation: ui-disclosure-open var(--motion-resize) var(--motion-ease);
+}
+@keyframes ui-disclosure-open {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-disclosure-content[data-state='open'] {
+    animation: none;
+  }
+}
+.data-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.focus-layout .data-tab-panel > .raw-viewer {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.ui-split-pane,
+.ui-split-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-split-pane {
+  flex: 1;
+}
+.ui-split-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: var(--color-base-200);
+  outline-offset: -2px;
+}
+.ui-split-handle[data-orientation='horizontal'] {
+  width: 8px;
+}
+.ui-split-handle[data-orientation='vertical'] {
+  height: 8px;
+}
+.ui-split-indicator {
+  border-radius: 2px;
+  background: var(--inspector-muted);
+  pointer-events: none;
+}
+.ui-split-indicator[data-orientation='horizontal'] {
+  width: 2px;
+  height: 24px;
+}
+.ui-split-indicator[data-orientation='vertical'] {
+  width: 24px;
+  height: 2px;
+}
+.ui-split-handle:hover,
+.ui-split-handle:focus-visible,
+.ui-split-handle[data-dragging] {
+  background: var(--tab-active);
+}
+.ui-split-handle:focus-visible > .ui-split-indicator,
+.ui-split-handle[data-dragging] > .ui-split-indicator {
+  background: var(--inspector-emphasis);
+}

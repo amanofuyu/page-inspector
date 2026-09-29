@@ -101,9 +101,9 @@ test('分析来源、条目就地展开、无业务值报告和取消后重建',
   await clickText(panel, '关闭', `${first} > .field-detail`)
   await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.inline-field-detail').length)).toBe(0)
   await panel.send('Emulation.clearDeviceMetricsOverride')
-  await panel.click('.distribution > summary')
+  await panel.click('.distribution > .ui-disclosure-trigger')
   for (const index of [1, 2, 3]) {
-    const item = `.distribution > h3:nth-of-type(${index}) + .distribution-item`
+    const item = `.distribution > .ui-disclosure-content > h3:nth-of-type(${index}) + .distribution-item`
     await panel.click(`${item} > .distribution-row`)
     await expect.poll(() => detailReady(item)).toBe('false')
     expect(await panel.evaluate(() => document.querySelectorAll('.inline-field-detail:not([inert])').length)).toBe(1)

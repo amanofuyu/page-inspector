@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './ui.css';
 
 @plugin "daisyui" {
   themes:
@@ -132,6 +133,14 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
+/* 页面只提供固定视口，滚动由工作区和内容面板各自管理。 */
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+}
 body {
   margin: 0;
   min-width: 280px;
@@ -170,16 +179,6 @@ summary {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--inspector-muted) transparent;
-}
-/* 为页面及独立滚动区预留滚动条位置，避免显隐时挤压内容和触发重新换行。 */
-:root,
-.tree-container,
-.search-results,
-.raw-code,
-.field-detail,
-.network-list,
-.response-preview {
-  scrollbar-gutter: stable;
 }
 .inspector-shell {
   min-height: 100vh;
@@ -539,7 +538,7 @@ summary {
 .view-tabs button:hover {
   color: var(--color-base-content);
 }
-.view-tabs button.active {
+.view-tabs button[data-selected] {
   color: var(--inspector-emphasis);
   background: var(--tab-active);
   border-color: color-mix(in srgb, var(--inspector-emphasis) 20%, transparent);
@@ -902,7 +901,7 @@ summary {
   overflow-wrap: anywhere;
 }
 /* 折叠卡片共用整行标题、留白和反馈，保持各处的点击与展开体验一致。 */
-.inspector-shell .disclosure-section > summary {
+.inspector-shell .disclosure-section > :is(summary, .ui-disclosure-trigger) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -926,16 +925,17 @@ summary {
 .disclosure-summary > span {
   min-width: 0;
 }
-.inspector-shell .disclosure-section[open] > summary {
+.inspector-shell .disclosure-section:is([open], [data-state='open']) > :is(summary, .ui-disclosure-trigger) {
   margin-bottom: 8px;
 }
-.disclosure-section[open] > summary > .disclosure-chevron {
+.disclosure-section:is([open], [data-state='open']) > :is(summary, .ui-disclosure-trigger) > .disclosure-chevron {
   transform: rotate(90deg);
 }
-.inspector-shell .disclosure-section > summary:active {
+.inspector-shell .disclosure-section > :is(summary, .ui-disclosure-trigger):active {
   background-color: var(--tab-active);
 }
-.disclosure-section > p {
+.disclosure-section > p,
+.disclosure-section > .ui-disclosure-content > p {
   margin-block: 8px;
 }
 .feature-primary > .disclosure-section,
@@ -1099,7 +1099,7 @@ summary {
   font-size: var(--font-size-xs);
   cursor: pointer;
 }
-.workspace-tabs button.active {
+.workspace-tabs button[data-selected] {
   background: var(--tab-active);
   color: var(--inspector-emphasis);
   font-weight: 600;
@@ -1528,7 +1528,7 @@ summary {
     background-color: color-mix(in srgb, var(--inspector-emphasis) 6%, transparent);
     box-shadow: inset 2px 0 0 color-mix(in srgb, var(--inspector-emphasis) 45%, transparent);
   }
-  .inspector-shell .disclosure-section > summary:hover:not(:active) {
+  .inspector-shell .disclosure-section > :is(summary, .ui-disclosure-trigger):hover:not(:active) {
     background-color: color-mix(in srgb, var(--inspector-emphasis) 7%, transparent);
   }
   .inspector-shell :is(.select, .input, .search-input):hover:not(:disabled) {
@@ -1606,7 +1606,7 @@ summary {
   }
 }
 
-.inspector-shell .disclosure-section > summary {
+.inspector-shell .disclosure-section > :is(summary, .ui-disclosure-trigger) {
   transition:
     color var(--motion-fast) ease-out,
     background-color var(--motion-feedback) ease-out,
@@ -1738,7 +1738,7 @@ summary {
   padding-block: 6px;
   font-size: var(--font-size-xs);
 }
-.seo-row-toggle {
+.seo-row > .ui-disclosure-trigger {
   width: 100%;
   display: flex;
   align-items: center;
@@ -1749,10 +1749,10 @@ summary {
   text-align: left;
   user-select: none;
 }
-.seo-row-toggle > svg {
+.seo-row > .ui-disclosure-trigger > svg {
   flex: none;
 }
-.seo-row-toggle > strong {
+.seo-row > .ui-disclosure-trigger > strong {
   min-width: 0;
   overflow-wrap: anywhere;
   flex: 1;
@@ -1828,14 +1828,14 @@ summary {
 .seo-issue[data-level='review'] {
   border-inline-start: 3px solid var(--color-warning);
 }
-.seo-row-toggle {
+.seo-row > .ui-disclosure-trigger {
   transition: background-color var(--motion-feedback) ease-out;
 }
-.seo-row-toggle:active {
+.seo-row > .ui-disclosure-trigger:active {
   background: var(--tab-active);
 }
 @media (hover: hover) and (pointer: fine) {
-  .seo-row-toggle:hover:not(:active) {
+  .seo-row > .ui-disclosure-trigger:hover:not(:active) {
     background: color-mix(in srgb, var(--inspector-emphasis) 7%, transparent);
   }
 }
@@ -1851,7 +1851,7 @@ summary {
   height: 100dvh;
   min-height: 0;
   max-width: none;
-  overflow: hidden;
+  overflow: clip;
   container-type: inline-size;
   background: var(--color-base-100);
 }
@@ -1923,15 +1923,28 @@ summary {
   min-height: 0;
   padding: 0;
   gap: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: clip;
 }
 .focus-layout .inspector-main > * {
   flex-shrink: 0;
 }
-/* 数据工作区不参与外层滚动，各面板在剩余高度内独立滚动。 */
-.focus-layout .data-main {
-  overflow: hidden;
+/* 每个工作区拥有自己的滚动区域，切换时不会带动页头和底部导航。 */
+.focus-layout .inspector-main > .feature-card:not(.data-workbench) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.inspector-context {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 35%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.focus-layout .inspector-context.is-empty {
+  flex: 1;
+  max-height: none;
 }
 .focus-layout .glass-card {
   border: 0;
@@ -2156,8 +2169,8 @@ summary {
     backdrop-filter: none;
   }
 }
-.focus-layout .inspector-main > .notice,
-.focus-layout .inspector-main > .field-label {
+.focus-layout .inspector-context > .notice,
+.focus-layout .inspector-context > .field-label {
   margin: 8px 12px;
 }
 .focus-layout .data-workbench,
@@ -2203,20 +2216,9 @@ summary {
   color: var(--inspector-emphasis);
   background: var(--tab-active);
 }
-.data-explorer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-.data-explorer.with-detail {
-  grid-template-columns: minmax(0, 1fr) clamp(240px, 36%, 400px);
-}
 .data-tree-pane {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
@@ -2227,7 +2229,8 @@ summary {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 39px;
+  height: 41px;
+  min-height: 41px;
   padding: 5px 12px;
   border-bottom: 1px solid var(--inspector-line);
   font-size: var(--font-size-xs);
@@ -2308,15 +2311,17 @@ summary {
 }
 .focus-layout .data-field-detail {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
-  border-left: 1px solid var(--inspector-line);
   border-radius: 0;
   background: var(--glass-solid);
   overflow: hidden;
+  scrollbar-gutter: auto;
 }
 .detail-pane-body {
   flex: 1;
@@ -2388,7 +2393,7 @@ summary {
 .focus-layout .toast-region {
   bottom: calc(104px + env(safe-area-inset-bottom));
 }
-/* 窄侧栏上下均分可用高度，收起详情时数据树占满剩余空间。 */
+/* 分栏方向由 UiSplitPane 的实际容器宽度决定，页头独立适应窄侧栏。 */
 @container (width < 600px) {
   .focus-layout .app-header {
     flex-wrap: wrap;
@@ -2397,16 +2402,6 @@ summary {
   .header-address {
     order: 3;
     flex-basis: 100%;
-  }
-  .focus-layout .data-explorer {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .focus-layout .data-explorer.with-detail {
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-  }
-  .focus-layout .data-field-detail {
-    border-left: 0;
-    border-top: 1px solid var(--inspector-line);
   }
 }
 @container (width < 400px) {

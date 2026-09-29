@@ -2,6 +2,7 @@
 import type { ToastMessage, ToastPauseReason } from '@/composables/useToast'
 import { CircleCheck, CircleX, Info, TriangleAlert, X } from '@lucide/vue'
 import { ref, watch } from 'vue'
+import UiActionButton from '@/components/ui/UiActionButton.vue'
 
 const props = defineProps<{ toast: ToastMessage | null }>()
 const emit = defineEmits<{
@@ -56,9 +57,9 @@ function restore(element: Element) {
         <p :key="toast.id" class="toast-message">
           {{ toast.message }}
         </p>
-        <button type="button" class="btn btn-ghost btn-xs toast-close" aria-label="关闭提示" title="关闭提示" @click="dismiss">
+        <UiActionButton icon-only class="toast-close" label="关闭提示" @click="dismiss">
           <X :size="14" aria-hidden="true" />
-        </button>
+        </UiActionButton>
       </div>
     </Transition>
   </div>

@@ -43,6 +43,27 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     expect(await panel.evaluate(() => chrome.devtools.inspectedWindow.tabId)).toBe(tabId)
     expect(await panel.evaluate(() => typeof chrome.devtools.network.getHAR)).toBe('function')
     await expect.poll(() => panel.text()).toContain('sample')
+    // 宿主视口不等于嵌入面板宽度，按真实容器验证方向和键盘调节。
+    const splitSizes = { horizontal: 64, vertical: 50 }
+    for (const width of [900, 560]) {
+      await frontend.send('Emulation.setDeviceMetricsOverride', { width, height: 780, deviceScaleFactor: 1, mobile: false })
+      await panel.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+      const orientation = await panel.evaluate(() => document.querySelector('.data-explorer')!.clientWidth >= 600 ? 'horizontal' : 'vertical')
+      const initial = splitSizes[orientation]
+      await expect.poll(() => panel.evaluate(() => ({ orientation: document.querySelector('.ui-split-handle')?.getAttribute('data-orientation'), size: Number(document.querySelector('.ui-split-handle')?.getAttribute('aria-valuenow')) }))).toEqual({ orientation, size: initial })
+      await panel.evaluate(() => document.querySelector<HTMLElement>('.ui-split-handle')!.focus())
+      const key = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown'
+      const keyCode = orientation === 'horizontal' ? 39 : 40
+      await panel.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: keyCode })
+      await panel.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: keyCode })
+      await expect.poll(() => panel.evaluate(() => Number(document.querySelector('.ui-split-handle')?.getAttribute('aria-valuenow')))).toBe(initial + 1)
+      splitSizes[orientation] = initial + 1
+    }
+    await frontend.send('Emulation.clearDeviceMetricsOverride')
+    await expect.poll(() => panel.evaluate((sizes) => {
+      const orientation = document.querySelector('.data-explorer')!.clientWidth >= 600 ? 'horizontal' : 'vertical'
+      return Number(document.querySelector('.ui-split-handle')?.getAttribute('aria-valuenow')) === sizes[orientation]
+    }, splitSizes)).toBe(true)
     await clickText(panel, '网络', '.workspace-tabs')
     await website.evaluate(async () => {
       await fetch('/_payload.json?proof=1')
@@ -53,6 +74,22 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     await clickText(panel, '读取响应正文')
     await expect.poll(() => panel.evaluate(() => document.querySelector('.response-preview')?.textContent)).toContain('Nuxt 4.0.0')
     await expect.poll(() => panel.evaluate(() => document.querySelector('.network-detail')?.textContent)).toContain('无法关联')
+    // 窄 DevTools 只滚动网络模块，页面根节点和主布局都不能滚动或预留右侧空槽。
+    // 扩展面板是嵌入目标，视口模拟只能作用于 DevTools 宿主目标。
+    await frontend.send('Emulation.setDeviceMetricsOverride', { width: 560, height: 640, deviceScaleFactor: 1, mobile: false })
+    await panel.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    expect(await panel.evaluate(() => {
+      const network = document.querySelector('.network-card')!
+      const main = document.querySelector('.inspector-main')!
+      network.scrollTop = network.scrollHeight
+      main.scrollTop = 100
+      document.scrollingElement!.scrollTop = 100
+      return network.scrollTop > 0 && main.scrollTop === 0 && document.scrollingElement!.scrollTop === 0
+        && main.scrollHeight <= main.clientHeight + 1
+        && Math.abs(document.querySelector('.inspector-shell')!.getBoundingClientRect().right - innerWidth) < 1
+        && Math.abs(document.querySelector('.workspace-footer')!.getBoundingClientRect().bottom - innerHeight) < 1
+    })).toBe(true)
+    await frontend.send('Emulation.clearDeviceMetricsOverride')
     // 相同完整 URL 的正文可对照；HAR 无导航证据时必须保留候选等级。
     await website.evaluate(async () => {
       await fetch('/_payload.json')
@@ -101,7 +138,7 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     expect(await panel.evaluate(() => ({
       visible: getComputedStyle(document.querySelector('[aria-label="扩展工作区"]')!).display !== 'none',
       content: document.querySelector('.tree-container')?.textContent,
-      selected: document.querySelector('.view-tabs [aria-pressed="true"]')?.textContent?.trim(),
+      selected: document.querySelector('.view-tabs [aria-selected="true"]')?.textContent?.trim(),
       empty: !!document.querySelector('.empty-state'),
     }))).toEqual({ visible: true, content: expect.stringContaining('sample'), selected: '数据', empty: false })
     await clickText(panel, '分析', '.workspace-tabs')

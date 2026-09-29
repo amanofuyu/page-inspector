@@ -11,7 +11,12 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AnalysisAnalysisView: typeof import('./features/analysis/AnalysisView.vue')['default']
+    InspectorComponentsInlineFieldDetail: typeof import('./features/inspector/components/InlineFieldDetail.vue')['default']
+    InspectorComponentsInspectorFooter: typeof import('./features/inspector/components/InspectorFooter.vue')['default']
+    InspectorComponentsInspectorHeader: typeof import('./features/inspector/components/InspectorHeader.vue')['default']
     InspectorDataTreeNode: typeof import('./features/inspector/DataTreeNode.vue')['default']
+    InspectorDataView: typeof import('./features/inspector/DataView.vue')['default']
     InspectorExpandTransition: typeof import('./features/inspector/ExpandTransition.vue')['default']
     InspectorFeatureWorkbench: typeof import('./features/inspector/FeatureWorkbench.vue')['default']
     InspectorFieldCopyActions: typeof import('./features/inspector/FieldCopyActions.vue')['default']
@@ -21,8 +26,24 @@ declare module 'vue' {
     InspectorRawViewer: typeof import('./features/inspector/RawViewer.vue')['default']
     InspectorToastNotice: typeof import('./features/inspector/ToastNotice.vue')['default']
     InspectorWatchButton: typeof import('./features/inspector/WatchButton.vue')['default']
+    NetworkComponentsNetworkRequestDetail: typeof import('./features/network/components/NetworkRequestDetail.vue')['default']
     NetworkNetworkView: typeof import('./features/network/NetworkView.vue')['default']
+    QueryComponentsQueryConditionEditor: typeof import('./features/query/components/QueryConditionEditor.vue')['default']
+    QueryQueryView: typeof import('./features/query/QueryView.vue')['default']
+    SeoComponentsSeoFieldRow: typeof import('./features/seo/components/SeoFieldRow.vue')['default']
+    SeoComponentsSeoFilters: typeof import('./features/seo/components/SeoFilters.vue')['default']
+    SeoComponentsSeoIssues: typeof import('./features/seo/components/SeoIssues.vue')['default']
+    SeoComponentsSeoSourceInfo: typeof import('./features/seo/components/SeoSourceInfo.vue')['default']
+    SeoComponentsSeoToolbar: typeof import('./features/seo/components/SeoToolbar.vue')['default']
     SeoSeoView: typeof import('./features/seo/SeoView.vue')['default']
     ThemeController: typeof import('./components/theme-controller.vue')['default']
+    UiUiActionButton: typeof import('./components/ui/UiActionButton.vue')['default']
+    UiUiDisclosure: typeof import('./components/ui/UiDisclosure.vue')['default']
+    UiUiSplitPane: typeof import('./components/ui/UiSplitPane.vue')['default']
+    UiUiTabList: typeof import('./components/ui/UiTabList.vue')['default']
+    UiUiTabPanel: typeof import('./components/ui/UiTabPanel.vue')['default']
+    UiUiTabs: typeof import('./components/ui/UiTabs.vue')['default']
+    UiUiTooltip: typeof import('./components/ui/UiTooltip.vue')['default']
+    WatchWatchView: typeof import('./features/watch/WatchView.vue')['default']
   }
 }

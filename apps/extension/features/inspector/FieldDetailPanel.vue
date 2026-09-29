@@ -5,6 +5,7 @@ import type { DataNode } from '../nuxt/format'
 import type { ToastInput } from '@/composables/useToast'
 import { PanelRightClose } from '@lucide/vue'
 import { computed } from 'vue'
+import UiActionButton from '@/components/ui/UiActionButton.vue'
 import { formatPath } from '../query/path'
 import DataTreeNode from './DataTreeNode.vue'
 import FieldCopyActions from './FieldCopyActions.vue'
@@ -41,9 +42,9 @@ const fullValue = computed(() => {
     <template v-if="node">
       <div class="detail-pane-heading">
         <h3>字段详情</h3>
-        <button class="btn btn-xs btn-ghost icon-button" aria-label="收起字段详情" title="收起字段详情" @click="emit('close')">
+        <UiActionButton icon-only label="收起字段详情" @click="emit('close')">
           <PanelRightClose :size="15" aria-hidden="true" />
-        </button>
+        </UiActionButton>
       </div>
       <div class="detail-pane-body">
         <h4 class="detail-field-name">
@@ -90,9 +91,9 @@ const fullValue = computed(() => {
     </template>
     <template v-else>
       <div class="feature-heading">
-        <h3>字段详情</h3><button class="btn btn-xs btn-ghost" @click="emit('close')">
+        <h3>字段详情</h3><UiActionButton @click="emit('close')">
           关闭
-        </button>
+        </UiActionButton>
       </div><p class="mono break-text">
         {{ formatPath(path) }}
       </p>

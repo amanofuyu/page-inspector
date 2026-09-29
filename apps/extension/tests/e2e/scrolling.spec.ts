@@ -1,7 +1,8 @@
+import type { WatchRule } from '../../features/watch/model'
 import type { SidePanel } from './fixtures'
 import { Buffer } from 'node:buffer'
 import { writeFile } from 'node:fs/promises'
-import { expect, test } from './fixtures'
+import { clickText, expect, fillField, test } from './fixtures'
 
 async function wheel(panel: SidePanel, selector: string) {
   const point = await panel.evaluate((selector) => {
@@ -24,10 +25,35 @@ async function outerLayout(panel: SidePanel) {
       mainOverflow: main.scrollHeight > main.clientHeight + 1,
       panesFit: explorer.bottom <= footer.top + 1,
       footerVisible: Math.abs(footer.bottom - innerHeight) < 1,
+      fullWidth: Math.abs(document.querySelector('.inspector-shell')!.getBoundingClientRect().right - innerWidth) < 1,
     }
   })
 }
-const fixedOuter = { documentTop: 0, mainTop: 0, documentOverflow: false, mainOverflow: false, panesFit: true, footerVisible: true }
+const fixedOuter = { documentTop: 0, mainTop: 0, documentOverflow: false, mainOverflow: false, panesFit: true, footerVisible: true, fullWidth: true }
+
+async function moduleScroll(panel: SidePanel, selector: string) {
+  await panel.evaluate((selector) => {
+    document.querySelector(selector)!.scrollTop = 0
+  }, selector)
+  await wheel(panel, selector)
+  await expect.poll(() => panel.evaluate(selector => document.querySelector(selector)!.scrollTop, selector)).toBeGreaterThan(0)
+  // 即使内部已到尽头，程序定位和继续滚轮也不能移动最外层。
+  await panel.evaluate((selector) => {
+    const element = document.querySelector(selector)!
+    element.scrollTop = element.scrollHeight
+    document.querySelector('.inspector-main')!.scrollTop = 100
+    document.scrollingElement!.scrollTop = 100
+  }, selector)
+  await wheel(panel, selector)
+  expect(await panel.evaluate(() => {
+    const main = document.querySelector('.inspector-main')!
+    const footer = document.querySelector('.workspace-footer')!.getBoundingClientRect()
+    return main.scrollTop === 0 && document.scrollingElement!.scrollTop === 0
+      && main.scrollHeight <= main.clientHeight + 1
+      && Math.abs(footer.bottom - innerHeight) < 1
+      && Math.abs(document.querySelector('.inspector-shell')!.getBoundingClientRect().right - innerWidth) < 1
+  })).toBe(true)
+}
 
 for (const [width, height] of [[900, 780], [560, 780], [320, 480]]) {
   test(`数据树与详情独立滚动，外层固定 ${width}×${height}`, async ({ extension }, testInfo) => {
@@ -37,6 +63,20 @@ for (const [width, height] of [[900, 780], [560, 780], [320, 480]]) {
     await expect.poll(() => panel.text()).toContain('已限制为 10,000')
     await expect.poll(() => panel.evaluate(() => document.querySelector('#data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
     await expect.poll(() => outerLayout(panel)).toEqual(fixedOuter)
+    expect(await panel.evaluate(() => {
+      const tree = document.querySelector('.data-tree-pane')!
+      const detail = document.querySelector('#data-field-detail')!
+      const treeBounds = tree.getBoundingClientRect()
+      const detailBounds = detail.getBoundingClientRect()
+      const treeHeading = tree.querySelector('.detail-pane-heading')!.getBoundingClientRect()
+      const detailHeading = detail.querySelector('.detail-pane-heading')!.getBoundingClientRect()
+      const sideBySide = innerWidth >= 600
+      return Math.abs(treeBounds.height - detailBounds.height) < 1
+        && Math.abs(treeHeading.height - detailHeading.height) < 1
+        && Math.abs(detailBounds.right - innerWidth) < 1
+        && getComputedStyle(detail).scrollbarGutter === 'auto'
+        && (!sideBySide || (Math.abs(treeBounds.top - detailBounds.top) < 1 && Math.abs(treeHeading.bottom - detailHeading.bottom) < 1))
+    })).toBe(true)
     for (const selector of ['.tree-container', '.detail-pane-body']) {
       expect(await panel.evaluate((selector) => {
         const element = document.querySelector(selector)!
@@ -97,5 +137,39 @@ for (const [width, height] of [[900, 780], [560, 780], [320, 480]]) {
     })
     const screenshot = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
     await writeFile(testInfo.outputPath(`internal-scroll-${width}.png`), Buffer.from(screenshot.data, 'base64'))
+    await clickText(panel, '原文', '.view-tabs')
+    await moduleScroll(panel, '.raw-viewer')
+  })
+}
+
+for (const [width, height] of [[900, 780], [320, 480]]) {
+  test(`分析、检索、关注和 SEO 各自滚动，外层固定 ${width}×${height}`, async ({ extension }) => {
+    const { panel, website } = extension
+    await panel.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
+    await website.goto('http://127.0.0.1:4318/features')
+    await expect.poll(() => panel.text()).toContain('feature-lab')
+    const workbench = '[aria-label="扩展工作区"]'
+    await clickText(panel, '分析', '.workspace-tabs')
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
+    await moduleScroll(panel, workbench)
+    await clickText(panel, '检索', '.workspace-tabs')
+    await fillField(panel, '[aria-label="条件 1 内容"]', 'feature-lab.many.*')
+    await clickText(panel, '执行查询')
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.query-result').length)).toBe(50)
+    await moduleScroll(panel, workbench)
+    await clickText(panel, '关注', '.workspace-tabs')
+    await fillField(panel, '[aria-label="关注路径"]', 'data.feature-lab.watched.price')
+    await clickText(panel, '添加关注')
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.watch-row').length)).toBe(1)
+    await panel.evaluate(async () => {
+      const rule = Object.entries(await chrome.storage.local.get(null)).find(([key]) => key.startsWith('inspector-definition/v1/'))![1] as WatchRule
+      await chrome.storage.local.set(Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`inspector-definition/v1/layout-${i}`, { ...rule, id: `layout-${i}`, name: `字段 ${i}` }])))
+    })
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.watch-row').length)).toBe(9)
+    await moduleScroll(panel, workbench)
+    await website.goto('http://127.0.0.1:4318/seo')
+    await clickText(panel, 'SEO', '.workspace-tabs')
+    await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.seo-row').length)).toBeGreaterThan(0)
+    await moduleScroll(panel, '.seo-card')
   })
 }

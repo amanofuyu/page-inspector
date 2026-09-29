@@ -107,7 +107,7 @@ test('SEO 真实文档响应：SSR／CSR 差异、报告和 SPA 基线隔离', a
       .poll(
         () =>
           panel.evaluate(
-            () => document.querySelector('.seo-source > summary')?.textContent,
+            () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
           ),
         { timeout: 15000 },
       )
@@ -130,7 +130,7 @@ test('SEO 真实文档响应：SSR／CSR 差异、报告和 SPA 基线隔离', a
       'http:canonical': 'transport',
     })
     await fillField(panel, '[aria-label="搜索 SEO 字段"]', 'title')
-    await panel.click('[data-key="title"] > .seo-row-toggle')
+    await panel.click('[data-key="title"] > .ui-disclosure-trigger')
     await expect
       .poll(() =>
         panel.evaluate(
@@ -200,7 +200,7 @@ test('SEO 真实文档响应：SSR／CSR 差异、报告和 SPA 基线隔离', a
       .toBe('changed')
     expect(
       await side.evaluate(
-        () => document.querySelector('.seo-source > summary')?.textContent,
+        () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
       ),
     ).toContain('已关联本次文档响应')
     await website.evaluate(() => {
@@ -210,7 +210,7 @@ test('SEO 真实文档响应：SSR／CSR 差异、报告和 SPA 基线隔离', a
     await expect
       .poll(() =>
         panel.evaluate(
-          () => document.querySelector('.seo-source > summary')?.textContent,
+          () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
         ),
       )
       .toContain('尚未捕获')

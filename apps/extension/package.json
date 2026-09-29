@@ -23,6 +23,7 @@
     "test:e2e:devtools": "playwright test -c playwright.devtools.config.ts"
   },
   "dependencies": {
+    "@ark-ui/vue": "5.39.2",
     "@unhead/vue": "^3.4.1",
     "@webext-core/messaging": "^4.0.0",
     "devalue": "6.0.2",
@@ -36,11 +37,14 @@
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@types/chrome": "^0.3.0",
+    "@vitejs/plugin-vue": "6.0.9",
+    "@vue/test-utils": "2.5.1",
     "@vueuse/core": "^15.0.0",
     "@wxt-dev/module-vue": "^1.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "daisyui": "^5.7.46",
+    "happy-dom": "20.14.5",
     "pinia": "^4.0.3",
     "shiki": "^4.4.3",
     "tailwind-merge": "^3.7.0",

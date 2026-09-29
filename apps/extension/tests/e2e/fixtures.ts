@@ -142,6 +142,8 @@ export const test = base.extend<InspectorOptions & {
         const button = document.createElement('button')
         button.id = 'launch-test'
         button.textContent = '打开测试侧边栏'
+        // 产品外层禁止滚动，测试入口固定在视口内，不依赖滚动到应用末尾。
+        button.style.cssText = 'position:fixed;top:12px;left:12px;z-index:1000'
         button.onclick = () => chrome.sidePanel.open({ windowId: id })
         document.body.append(button)
       }, windowId)

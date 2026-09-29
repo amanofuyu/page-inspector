@@ -2,6 +2,7 @@
 import type { CollectedApp } from '../nuxt/types'
 import { ChevronRight, Clock3, FileJson, Info, LockKeyhole, X } from '@lucide/vue'
 import { computed, onMounted, ref, watch } from 'vue'
+import UiActionButton from '@/components/ui/UiActionButton.vue'
 
 const props = defineProps<{
   title: string
@@ -55,9 +56,9 @@ onMounted(syncDialog)
             查看页面信息、采集来源与展示范围
           </p>
         </div>
-        <button type="button" class="btn btn-ghost btn-xs context-dialog-close" aria-label="关闭页面信息" title="关闭" autofocus @click="open = false">
+        <UiActionButton icon-only class="context-dialog-close" label="关闭页面信息" autofocus @click="open = false">
           <X :size="18" aria-hidden="true" />
-        </button>
+        </UiActionButton>
       </header>
       <div class="context-dialog-body" tabindex="0" role="region" aria-label="页面信息内容">
         <section class="context-page" aria-labelledby="context-page-heading">
@@ -122,9 +123,9 @@ onMounted(syncDialog)
         <p class="privacy-note">
           <LockKeyhole :size="13" aria-hidden="true" />数据仅在本地查看
         </p>
-        <button type="button" class="btn btn-sm btn-ghost" @click="open = false">
+        <UiActionButton size="sm" @click="open = false">
           知道了
-        </button>
+        </UiActionButton>
       </footer>
     </div>
   </dialog>

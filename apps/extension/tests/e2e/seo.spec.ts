@@ -37,7 +37,7 @@ test('普通页面 SEO：未知来源、参考 HTML、字段筛选、就地详�
       () => document.querySelector('.seo-summary')?.textContent,
     ),
   ).toContain('DOM 字段')
-  await panel.click(`${title} > .seo-row-toggle`)
+  await panel.click(`${title} > .ui-disclosure-trigger`)
   await expect
     .poll(() =>
       panel.evaluate(
@@ -65,7 +65,7 @@ test('普通页面 SEO：未知来源、参考 HTML、字段筛选、就地详�
     .toBe('reference')
   expect(
     await panel.evaluate(
-      () => document.querySelector('.seo-source > summary')?.textContent,
+      () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
     ),
   ).toContain('参考 HTML')
   expect(
@@ -96,7 +96,7 @@ test('普通页面 SEO：未知来源、参考 HTML、字段筛选、就地详�
     deviceScaleFactor: 1,
     mobile: false,
   })
-  await panel.click('[data-key="meta:description"] > .seo-row-toggle')
+  await panel.click('[data-key="meta:description"] > .ui-disclosure-trigger')
   await panel.evaluate(async () => {
     await Promise.all(
       document
@@ -171,7 +171,7 @@ test('普通页面 SEO：未知来源、参考 HTML、字段筛选、就地详�
   await expect
     .poll(() =>
       panel.evaluate(
-        () => document.querySelector('.seo-source > summary')?.textContent,
+        () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
       ),
     )
     .toContain('尚未捕获')

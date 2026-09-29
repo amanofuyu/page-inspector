@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 import { writeFile } from 'node:fs/promises'
 import { clickText, expect, fillField, test } from './fixtures'
 
-const copySample = '#data-field-detail [title="复制带类型的数据"]'
+const copySample = '#data-field-detail [aria-label="复制带类型的数据"]'
 
 test('实际操作按成功、失败、警告和信息切换图标及明暗主题配色', async ({ extension }, testInfo) => {
   const { panel, website } = extension

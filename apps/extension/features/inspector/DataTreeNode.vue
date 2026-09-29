@@ -4,9 +4,10 @@ import type { FieldPath } from '@/features/inspection/model'
 import type { DataNode } from '@/features/nuxt/format'
 import { ChevronRight, Copy, Info, Link } from '@lucide/vue'
 import { ref } from 'vue'
-import { exportNode } from '@/features/nuxt/format'
+import UiActionButton from '@/components/ui/UiActionButton.vue'
 import { formatPath } from '@/features/query/path'
 import ExpandTransition from './ExpandTransition.vue'
+import { useFieldActions } from './useFieldActions'
 import WatchButton from './WatchButton.vue'
 
 const props = defineProps<{
@@ -31,14 +32,9 @@ function toggle() {
     return
   expanded.value = !expanded.value
 }
-async function copy(pathOnly: boolean) {
-  try {
-    await navigator.clipboard.writeText(pathOnly ? props.node.fieldPath ? formatPath(props.node.fieldPath) : props.node.path : exportNode(props.node))
-    emit('notice', { message: pathOnly ? '已复制字段路径' : '已复制带类型的数据', kind: 'success' })
-  }
-  catch {
-    emit('notice', { message: '复制失败，请使用导出功能。', kind: 'error' })
-  }
+const actions = useFieldActions(notice => emit('notice', notice))
+function copy(pathOnly: boolean) {
+  void actions.copy(props.node, pathOnly ? 'path' : 'typed')
 }
 </script>
 
@@ -81,18 +77,18 @@ async function copy(pathOnly: boolean) {
       </component>
       <span v-if="!selectable && !hideActions" class="tree-actions">
 
-        <button class="btn btn-ghost btn-xs" title="复制字段路径" :aria-label="`复制字段路径 ${node.path}`" @click="copy(true)"><Link :size="12" aria-hidden="true" /></button>
-        <button v-if="node.fieldPath && node.fieldPath.at(-1)?.kind !== 'map-entry'" class="btn btn-ghost btn-xs" :aria-label="`字段详情 ${node.path}`" title="字段详情" @click="emit('locate', node.fieldPath)"><Info :size="12" aria-hidden="true" /></button>
+        <UiActionButton icon-only tooltip="复制字段路径" :label="`复制字段路径 ${node.path}`" @click="copy(true)"><Link :size="12" aria-hidden="true" /></UiActionButton>
+        <UiActionButton v-if="node.fieldPath && node.fieldPath.at(-1)?.kind !== 'map-entry'" icon-only :label="`字段详情 ${node.path}`" tooltip="字段详情" @click="emit('locate', node.fieldPath)"><Info :size="12" aria-hidden="true" /></UiActionButton>
         <WatchButton v-if="node.fieldPath && node.fieldPath.at(-1)?.kind !== 'map-entry'" :path="node.fieldPath" :watched="watchedPaths?.has(formatPath(node.fieldPath)) ?? false" :busy="pendingWatchPaths?.has(formatPath(node.fieldPath))" icon-only @toggle="emit('watch', $event)" />
-        <button class="btn btn-ghost btn-xs" title="复制带类型的数据" :aria-label="`复制带类型的数据 ${node.path}`" @click="copy(false)"><Copy :size="12" aria-hidden="true" /></button>
+        <UiActionButton icon-only tooltip="复制带类型的数据" :label="`复制带类型的数据 ${node.path}`" @click="copy(false)"><Copy :size="12" aria-hidden="true" /></UiActionButton>
       </span>
     </div>
     <ExpandTransition>
       <div v-if="expanded && node.children" class="tree-children">
         <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :selectable="selectable" :selected-path="selectedPath" :hide-actions="hideActions" @select="emit('select', $event)" @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" />
-        <button v-if="node.children.length > limit" class="btn btn-ghost btn-xs my-1" @click="limit += 100">
+        <UiActionButton v-if="node.children.length > limit" class="my-1" @click="limit += 100">
           再显示 100 项（剩余 {{ node.children.length - limit }} 项）
-        </button>
+        </UiActionButton>
         <p v-if="!node.children.length && !node.truncated" class="tree-hint">
           空集合
         </p>

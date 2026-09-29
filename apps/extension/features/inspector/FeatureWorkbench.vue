@@ -1,22 +1,27 @@
 <script setup lang="ts">
-import type { FieldDetail, WorkerOperations } from '../../workers/protocol'
 import type { FieldPath } from '../inspection/model'
 import type { DataNode } from '../nuxt/format'
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
-import type { QueryCondition, QuerySpec } from '../query/engine'
-import type { SavedQuery, WatchComparison, WatchRule } from '../watch/model'
 import type { ToastInput } from '@/composables/useToast'
-import { ChevronRight, Download, RefreshCw } from '@lucide/vue'
-import { computed, ref, shallowRef, toRaw, watch } from 'vue'
-import { useDefinitions } from '@/composables/useDefinitions'
-import { usePayloadWorker } from '@/composables/usePayloadWorker'
+import { RefreshCw } from '@lucide/vue'
+import { computed, ref, watch } from 'vue'
+import UiActionButton from '@/components/ui/UiActionButton.vue'
+import { useArtifactActions } from '@/composables/useArtifactActions'
+import AnalysisView from '../analysis/AnalysisView.vue'
 import { analysisReport } from '../analysis/report'
-import { exactPath, formatPath } from '../query/path'
-import { matchesScope, scopeFor, WatchSession } from '../watch/model'
+import { useAnalysisSession } from '../analysis/useAnalysisSession'
+import { exactPath } from '../query/path'
+import QueryView from '../query/QueryView.vue'
+import { useQuerySession } from '../query/useQuerySession'
+import { useWatchRules } from '../watch/useWatchRules'
+import WatchView from '../watch/WatchView.vue'
+import InlineFieldDetail from './components/InlineFieldDetail.vue'
 import ExpandTransition from './ExpandTransition.vue'
 import FieldDetailPanel from './FieldDetailPanel.vue'
 import { vResizeMotion } from './motion'
-import WatchButton from './WatchButton.vue'
+import { useFieldDetails } from './useFieldDetails'
+import { useWorkbenchIndex } from './useWorkbenchIndex'
+import { useWorkbenchViewState } from './useWorkbenchViewState'
 
 const props = defineProps<{
   app?: CollectedApp
@@ -27,49 +32,21 @@ const props = defineProps<{
   dataNode?: DataNode
   dataDetailVisible?: boolean
 }>()
-const emit = defineEmits<{
-  notice: [notice: ToastInput]
-  activate: [
-        view: string,
-  ]
-}>()
-const worker = usePayloadWorker()
-const { ready, pending, error } = worker
-const { definitions, storageNotice, save, remove } = useDefinitions()
-const sourceMode = ref<number | null>(null)
-const includeQuery = ref(false)
-const analysis = shallowRef<WorkerOperations['analyze']['output'] | null>(null)
-const results = shallowRef<WorkerOperations['query']['output'] | null>(null)
-const queryError = ref('')
-const detail = shallowRef<FieldDetail | null>(null)
-const detailPath = shallowRef<FieldPath>([])
-const detailLocation = ref<string | null>(null)
-const detailLoading = ref(false)
-const detailError = ref('')
-const comparisons = shallowRef<WatchComparison[]>([])
-const executedSpec = shallowRef<QuerySpec | null>(null)
-const queryName = ref('')
-const watchPath = ref('')
-const watchName = ref('')
-const rankingSort = ref<'size' | 'path' | 'items'>('size')
-const spec = ref<QuerySpec>({ combine: 'all', category: 'data', conditions: [{ field: 'path', op: 'eq', value: '*' }] })
-const scope = computed(() => scopeFor(props.snapshot, props.app, true))
-const applicable = computed(() => definitions.value.filter(rule => matchesScope(rule.scope, scope.value)))
-const watches = computed(() => applicable.value.filter((rule): rule is WatchRule => rule.kind === 'watch'))
-const watchedPaths = computed(() => new Set(watches.value.map(rule => formatPath(rule.path))))
-const watchContext = computed(() => JSON.stringify(scope.value))
-const pendingWatches = ref(new Map<string, { context: string, path: string }>())
-const pendingWatchPaths = computed(() => new Set([...pendingWatches.value.values()].filter(item => item.context === watchContext.value).map(item => item.path)))
-const favorites = computed(() => applicable.value.filter((rule): rule is SavedQuery => rule.kind === 'query'))
-const otherWatches = computed(() => definitions.value.filter(rule => rule.kind === 'watch' && !matchesScope(rule.scope, scope.value)))
-const snapshotKey = computed(() => props.snapshot && props.app ? `${props.snapshot.snapshotId ?? props.snapshot.collectedAt}:${props.app.id}:${sourceMode.value ?? 'merged'}` : '')
-const selectedSource = computed(() => sourceMode.value === null ? null : props.app?.sources[sourceMode.value])
-const contextKey = computed(() => `${props.tabId}:${scope.value?.origin}:${scope.value?.pathname}:${scope.value?.app}:${selectedSource.value ? `${selectedSource.value.kind}:${selectedSource.value.url}:${selectedSource.value.transport}` : 'merged'}`)
-const rows = computed(() => [...analysis.value?.rows ?? []].sort((a, b) => rankingSort.value === 'path' ? a.path.localeCompare(b.path) : rankingSort.value === 'items' ? (b.itemCount ?? 0) - (a.itemCount ?? 0) : b.estimatedBytes - a.estimatedBytes))
-const watchSession = new WatchSession()
-let generation = 0
-let watchRequest = 0
-let detailRequest = 0
+const emit = defineEmits<{ notice: [notice: ToastInput] }>()
+const notice = (value: ToastInput) => emit('notice', value)
+const surface = ref<HTMLElement | null>(null)
+const input = { app: () => props.app, snapshot: () => props.snapshot, tabId: () => props.tabId, status: () => props.status }
+const index = useWorkbenchIndex(input)
+const { ready, pending, error, sourceMode, scope, snapshotKey } = index
+const { spec, queryName, watchDraft, rankingSort } = useWorkbenchViewState()
+const analysisSession = useAnalysisSession(index, notice)
+const { analysis } = analysisSession
+const querySession = useQuerySession(index)
+const { results, executedSpec, queryError } = querySession
+const rules = useWatchRules(index, input, notice)
+const { storageNotice, watches, watchedPaths, pendingWatchPaths, favorites, otherWatches, comparisons } = rules
+const { detail, detailPath, detailLocation, detailLoading, detailError, closeDetail, locate, toggleInlineDetail, sourceLabel } = useFieldDetails(index, notice)
+const artifacts = useArtifactActions(notice)
 const detailProps = computed(() => ({
   path: detailPath.value,
   detail: detail.value,
@@ -79,264 +56,65 @@ const detailProps = computed(() => ({
   watchedPaths: watchedPaths.value,
   pendingWatchPaths: pendingWatchPaths.value,
 }))
-function size(bytes: number | null) {
-  return bytes === null ? '未知' : bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1048576).toFixed(2)} MiB`
-}
-function reportError(failure: unknown) {
-  emit('notice', { message: failure instanceof Error ? failure.message : String(failure), kind: 'error' })
-}
-function download(value: unknown, name: string) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${name}-${Date.now()}.json`
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
+const sourceLabels = computed(() => Object.fromEntries(ready.value?.metrics.map(item => [item.sourceId, sourceLabel(item.sourceId)]) ?? []))
 async function start() {
-  const current = ++generation
-  analysis.value = null
-  results.value = null
-  executedSpec.value = null
-  queryError.value = ''
+  const task = index.start()
+  const generation = index.generation.value
+  await task
+  if (generation !== index.generation.value || !ready.value)
+    return
+  await rules.updateWatches()
+  if (generation === index.generation.value && props.active === 'analysis')
+    await analysisSession.analyze()
+}
+function analyze() {
   closeDetail()
-  if (!props.app || props.status !== 'ready') {
-    worker.stop('等待成功采集新快照。')
-    return
-  }
-  watchSession.reset(contextKey.value)
-  comparisons.value = []
-  await worker.initialize(toRaw(props.app), snapshotKey.value, sourceMode.value)
-  if (current === generation && ready.value) {
-    await updateWatches()
-    if (props.active === 'analysis')
-      await analyze()
-  }
+  void analysisSession.analyze()
 }
-async function analyze() {
-  if (!ready.value || pending.value)
-    return
-  if (detailLocation.value !== null)
-    closeDetail()
-  const current = generation
-  try {
-    const result = await worker.call('analyze', undefined)
-    if (current === generation)
-      analysis.value = result
-  }
-  catch (failure) {
-    if (current === generation)
-      reportError(failure)
-  }
-}
-async function query(offset?: number) {
-  const current = generation
-  const submitted: QuerySpec = JSON.parse(JSON.stringify(spec.value))
-  queryError.value = ''
-  if (detailLocation.value?.startsWith('query-'))
-    closeDetail()
-  if (offset === undefined) {
-    // 新条件开始执行后不再展示上一次结果，避免失败时误认成新结果。
-    results.value = null
-    executedSpec.value = null
-  }
-  try {
-    const result = offset === undefined ? await worker.call('query', submitted) : await worker.call('page', offset)
-    if (current === generation) {
-      results.value = result
-      if (offset === undefined)
-        executedSpec.value = submitted
-    }
-  }
-  catch (failure) {
-    if (current === generation) {
-      results.value = null
-      executedSpec.value = null
-      queryError.value = failure instanceof Error ? failure.message : String(failure)
-    }
-  }
-}
-function closeDetail() {
-  // 关闭、切换条目或刷新后，已排队的旧详情不能重新展开界面。
-  detailRequest++
-  detail.value = null
-  detailLocation.value = null
-  detailLoading.value = false
-  detailError.value = ''
-}
-async function locate(path: FieldPath, location: string | null = null) {
-  if (!ready.value) {
-    emit('notice', { message: '索引尚未就绪，请等待或重新建立索引。', kind: 'warning' })
-    return
-  }
-  const current = generation
-  const request = ++detailRequest
-  detailPath.value = path
-  detailLocation.value = location
-  detail.value = null
-  detailError.value = ''
-  detailLoading.value = true
-  try {
-    const value = await worker.call('detail', JSON.parse(JSON.stringify(path)))
-    if (current === generation && request === detailRequest)
-      detail.value = value
-  }
-  catch (failure) {
-    if (current === generation && request === detailRequest)
-      detailError.value = failure instanceof Error ? failure.message : String(failure)
-  }
-  finally {
-    if (current === generation && request === detailRequest)
-      detailLoading.value = false
-  }
-}
-function toggleInlineDetail(location: string, path: FieldPath) {
-  if (detailLocation.value === location)
-    closeDetail()
-  else
-    void locate(path, location)
-}
-
-async function changeWatch(path: FieldPath, toggle = false) {
-  const selected = scopeFor(props.snapshot, props.app, includeQuery.value)
-  if (!selected) {
-    emit('notice', { message: '需要可确认的初始文档和唯一应用声明标识；当前应用不能自动绑定关注。', kind: 'warning' })
-    return
-  }
-  const key = formatPath(path)
-  const context = watchContext.value
-  const operation = `${context}:${key}`
-  if (pendingWatches.value.has(operation))
-    return
-  const existing = watches.value.filter(rule => formatPath(rule.path) === key)
-  if (existing.length && !toggle) {
-    emit('notice', { message: '该路径已关注。', kind: 'info' })
-    return
-  }
-  pendingWatches.value.set(operation, { context, path: key })
-  try {
-    if (existing.length) {
-      // 同一路径可能有多个适用规则，取消时一并移除，保证按钮与当前范围一致。
-      for (const rule of existing)
-        await remove(rule.id)
-      emit('notice', { message: '已取消关注字段。', kind: 'success' })
-    }
-    else {
-      await save({ version: 1, kind: 'watch', id: crypto.randomUUID(), name: watchName.value.trim().slice(0, 160) || key.slice(0, 160), scope: selected, path: JSON.parse(JSON.stringify(path)), createdAt: Date.now() })
-      emit('notice', { message: '已关注字段；比较值仅保留在当前面板会话。', kind: 'success' })
-      watchName.value = ''
-    }
-  }
-  catch (failure) {
-    reportError(failure)
-  }
-  finally {
-    pendingWatches.value.delete(operation)
-  }
-}
-function addWatch(path: FieldPath) {
-  return changeWatch(path)
+function query(offset?: number) {
+  closeDetail()
+  void querySession.query(spec.value, offset)
 }
 function toggleWatch(path: FieldPath) {
-  return changeWatch(path, true)
+  void rules.changeWatch(path, { toggle: true, includeQuery: watchDraft.value.includeQuery })
 }
-
-function addPath() {
+async function addPath() {
+  const draft = watchDraft.value
   try {
-    void addWatch(exactPath(watchPath.value))
+    const saved = await rules.changeWatch(exactPath(draft.path), { name: draft.name, includeQuery: draft.includeQuery })
+    if (saved && watchDraft.value === draft)
+      watchDraft.value = { ...draft, name: '' }
   }
   catch (failure) {
-    reportError(failure)
-  }
-}
-async function updateWatches() {
-  if (!ready.value)
-    return
-  const current = generation
-  const request = ++watchRequest
-  try {
-    const values = await worker.call('watches', JSON.parse(JSON.stringify(watches.value)))
-    if (current === generation && request === watchRequest)
-      comparisons.value = watchSession.update(snapshotKey.value, values)
-  }
-  catch (failure) {
-    if (current === generation)
-      reportError(failure)
+    notice({ message: failure instanceof Error ? failure.message : String(failure), kind: 'error' })
   }
 }
 async function saveQuery() {
-  const selected = scopeFor(props.snapshot, props.app, includeQuery.value)
-  if (!selected) {
-    emit('notice', { message: '此应用没有可安全绑定的站点范围。', kind: 'warning' })
-    return
-  }
-  try {
-    await save({ version: 1, kind: 'query', id: crypto.randomUUID(), name: queryName.value.trim().slice(0, 160) || '收藏查询', scope: selected, query: JSON.parse(JSON.stringify(spec.value)), createdAt: Date.now() })
+  const name = queryName.value
+  if (await rules.saveQuery(spec.value, name, watchDraft.value.includeQuery) && queryName.value === name)
     queryName.value = ''
-  }
-  catch (failure) {
-    reportError(failure)
-  }
 }
-async function removeRule(id: string) {
-  try {
-    await remove(id)
-  }
-  catch (failure) {
-    reportError(failure)
-  }
+function exportAnalysis() {
+  if (ready.value && analysis.value)
+    artifacts.downloadJson(analysisReport(snapshotKey.value, ready.value.metrics, analysis.value), 'payload-analysis')
 }
-async function rename(rule: WatchRule, event: Event) {
-  try {
-    await save({ ...rule, name: (event.target as HTMLInputElement).value.slice(0, 160) })
-  }
-  catch (failure) {
-    reportError(failure)
-  }
+function exportQuery() {
+  if (results.value)
+    artifacts.downloadJson({ format: 'page-inspector-query/v1', snapshotId: snapshotKey.value, query: executedSpec.value, ...results.value }, 'payload-query-page')
 }
-async function copy(value: unknown) {
-  try {
-    await navigator.clipboard.writeText(typeof value === 'string' ? value : JSON.stringify(value, null, 2))
-    emit('notice', { message: '已复制', kind: 'success' })
-  }
-  catch {
-    emit('notice', { message: '复制失败，请使用导出。', kind: 'error' })
-  }
-}
-function comparison(id: string) {
-  return comparisons.value.find(value => value.id === id)
-}
-function sourceLabel(id: string | null) {
-  const source = ready.value?.metrics.find(item => item.sourceId === id)
-  return source ? `${source.kind === 'inline' ? '内嵌' : '外部'} · ${source.transport}` : '来源未确认'
-}
-function operations(condition: QueryCondition) {
-  return condition.field === 'path' ? ['eq', 'ne', 'exists', 'missing'] : condition.field === 'value' ? ['contains', 'eq', 'ne', 'gt', 'gte', 'lt', 'lte'] : ['contains', 'eq', 'ne']
-}
-function changeField(condition: QueryCondition) {
-  condition.op = condition.field === 'path' ? 'eq' : 'contains'
-}
-const labels: Record<string, string> = { contains: '包含', eq: '等于', ne: '不等于', gt: '大于', gte: '大于等于', lt: '小于', lte: '小于等于', exists: '路径存在', missing: '路径缺失' }
-// 在快照索引启动前校验来源，保留仍有效的选择；来源消失时回到合并模式。
-watch(() => props.app?.sources, (sources) => {
-  if (sources && sourceMode.value !== null && !sources[sourceMode.value])
-    sourceMode.value = null
-}, { flush: 'sync' })
 watch(snapshotKey, () => {
   void start()
 }, { immediate: true })
-watch(watches, () => {
-  void updateWatches()
-})
 watch(() => props.active, (value, previous) => {
-  if (value !== previous)
+  if (value !== previous) {
     closeDetail()
-  if (value === 'data' && sourceMode.value !== null)
+    surface.value?.scrollTo({ top: 0 })
+  }
+  if (value === 'data')
     sourceMode.value = null
   if (value === 'analysis' && !analysis.value)
-    void analyze()
+    void analysisSession.analyze()
 }, { flush: 'sync' })
-// 数据区先显示当前快照中的节点，再用既有 Worker 补齐该字段的局部视图与来源。
 watch([() => props.dataNode, () => props.dataDetailVisible, () => props.active, ready], () => {
   if (props.active !== 'data')
     return
@@ -345,19 +123,18 @@ watch([() => props.dataNode, () => props.dataDetailVisible, () => props.active, 
   if (props.dataDetailVisible && path && path.at(-1)?.kind !== 'map-entry' && ready.value)
     void locate(path)
 }, { flush: 'sync' })
-defineExpose({ toggleWatch, locate })
 </script>
 
 <template>
-  <section v-show="(active === 'data' && !!app && status === 'ready') || ['analysis', 'query', 'watch'].includes(active)" class="feature-card glass-card" :class="{ 'data-workbench': active === 'data' }" aria-label="扩展工作区">
+  <section v-show="(active === 'data' && !!app && status === 'ready') || ['analysis', 'query', 'watch'].includes(active)" ref="surface" class="feature-card glass-card" :class="{ 'data-workbench': active === 'data' }" aria-label="扩展工作区">
     <div v-if="active !== 'data'" class="feature-toolbar">
-      <label class="toolbar-field"><span class="toolbar-field-label">分析范围</span><select v-model="sourceMode" class="select select-sm" aria-label="分析来源"><option :value="null">合并后的应用</option><option v-for="(item, index) in app?.sources" :key="index" :value="index">来源 {{ index + 1 }} · {{ item.kind === 'inline' ? '内嵌' : '外部' }}</option></select></label>
-      <button v-if="pending" class="btn btn-sm btn-ghost" @click="worker.stop()">
+      <label class="toolbar-field"><span class="toolbar-field-label">分析范围</span><select v-model="sourceMode" class="select select-sm" aria-label="分析来源"><option :value="null">合并后的应用</option><option v-for="(item, position) in app?.sources" :key="position" :value="position">来源 {{ position + 1 }} · {{ item.kind === 'inline' ? '内嵌' : '外部' }}</option></select></label>
+      <UiActionButton v-if="pending" label="取消任务" size="sm" @click="index.cancel">
         取消任务
-      </button>
-      <button v-else class="btn btn-sm btn-ghost" @click="start">
+      </UiActionButton>
+      <UiActionButton v-else label="重建索引" size="sm" @click="start">
         <RefreshCw :size="14" aria-hidden="true" />重建索引
-      </button>
+      </UiActionButton>
     </div>
     <p v-if="active !== 'data'" class="feature-caption" role="status">
       {{ pending ? '正在处理…' : ready ? `索引 ${ready.coverage.scanned.toLocaleString()} 个节点 · ${ready.coverage.status === 'complete' ? '完整' : '部分覆盖'}` : error || '等待数据' }}<span v-if="ready?.coverage.reasons.length"> · {{ ready.coverage.reasons.join('；') }}</span>
@@ -367,224 +144,21 @@ defineExpose({ toggleWatch, locate })
     </p>
     <div class="feature-columns">
       <div v-resize-motion="`${active}:${spec.conditions.length}:${results?.total}:${results?.offset}:${watches.length}`" class="feature-primary">
-        <slot v-if="active === 'data'" name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :data-detail="detailProps" />
-        <template v-if="active === 'analysis'">
-          <div class="feature-heading">
-            <h2>原文体积与字段估算</h2><button class="btn btn-sm btn-ghost" :disabled="!ready || !!pending" @click="analyze">
-              <RefreshCw :size="14" aria-hidden="true" />{{ analysis ? '重新分析' : '开始分析' }}
-            </button>
-          </div>
-          <div class="metric-grid">
-            <article v-for="item in ready?.metrics" :key="item.sourceId" class="metric-card">
-              <span>{{ item.kind === 'inline' ? '内嵌原文' : '外部原文' }} · {{ item.transport }}</span><strong>{{ size(item.rawUtf8Bytes) }}</strong>
-              <span>已采集原文 UTF-8 · {{ item.complete ? '完整取得' : '读取不完整' }} · {{ item.parseStatus }}</span>
-              <details class="disclosure-section">
-                <summary class="disclosure-summary">
-                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>来源度量</span>
-                </summary><p class="break-text">
-                  {{ item.url }}
-                </p><p>消息预算 {{ size(item.messageBytes) }} · 已读下界 {{ size(item.readBytesLowerBound) }}</p><p class="break-text">
-                  SHA-256 {{ item.digest || '未知' }}
-                </p><p v-if="item.error">
-                  {{ item.error }}
-                </p>
-              </details>
-            </article>
-          </div>
-          <template v-if="analysis">
-            <p class="feature-caption">
-              算法 {{ analysis.algorithm }} · {{ analysis.coverage.status === 'complete' ? '完整分析' : '部分分析' }} · {{ analysis.durationMs.toFixed(0) }} ms。字段独立估算，不可相加，也不代表压缩传输字节。
-            </p>
-            <p v-if="analysis.coverage.reasons.length" class="notice notice-warning">
-              {{ analysis.coverage.reasons.join('；') }}
-            </p>
-            <div class="feature-toolbar">
-              <label class="toolbar-field"><span class="toolbar-field-label">字段排名</span><select v-model="rankingSort" class="select select-sm" aria-label="排名排序"><option value="size">估算体积</option><option value="items">项数</option><option value="path">路径</option></select></label><button class="btn btn-sm btn-ghost" :disabled="!ready" @click="download(analysisReport(snapshotKey, ready!.metrics, analysis), 'payload-analysis')">
-                <Download :size="14" aria-hidden="true" />导出分析报告
-              </button>
-            </div>
-            <ol class="ranking-list">
-              <li v-for="row in rows" :key="row.nodeId">
-                <button class="ranking-row" :aria-expanded="detailLocation === `ranking-${row.nodeId}`" :aria-controls="detailLocation === `ranking-${row.nodeId}` ? `analysis-detail-ranking-${row.nodeId}` : undefined" @click="toggleInlineDetail(`ranking-${row.nodeId}`, row.fieldPath)">
-                  <span class="analysis-item-label"><ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span class="mono break-text">{{ row.path }}</span></span><span>{{ row.type }} · {{ row.itemCount ?? '—' }} 项 · {{ row.complete ? '' : '≥ ' }}{{ size(row.estimatedBytes) }}<small v-if="row.references"> · {{ row.references }} 个引用</small></span><span class="ranking-track"><i :style="{ width: `${Math.max(1, row.estimatedBytes / Math.max(1, analysis.rows[0]?.estimatedBytes ?? 1) * 100)}%` }" /></span>
-                </button><WatchButton :path="row.fieldPath" :watched="watchedPaths.has(formatPath(row.fieldPath))" :busy="pendingWatchPaths.has(formatPath(row.fieldPath))" @toggle="toggleWatch" />
-                <ExpandTransition>
-                  <FieldDetailPanel v-if="detailLocation === `ranking-${row.nodeId}`" :id="`analysis-detail-ranking-${row.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
-                </ExpandTransition>
-              </li>
-            </ol>
-            <details class="distribution disclosure-section">
-              <summary class="disclosure-summary">
-                <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>内容分布 · {{ analysis.distribution.sharedEdges }} 条共享引用边</span>
-              </summary><p class="feature-caption">
-                共享引用已节省重复序列化成本，不直接等同于应删除的数据。
-              </p><h3>长字符串</h3><div v-for="item in analysis.distribution.strings" :key="item.nodeId" class="distribution-item">
-                <button class="distribution-row" :aria-expanded="detailLocation === `strings-${item.nodeId}`" :aria-controls="detailLocation === `strings-${item.nodeId}` ? `analysis-detail-strings-${item.nodeId}` : undefined" @click="toggleInlineDetail(`strings-${item.nodeId}`, item.fieldPath)">
-                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.length }} 字符</span>
-                </button>
-                <ExpandTransition>
-                  <FieldDetailPanel v-if="detailLocation === `strings-${item.nodeId}`" :id="`analysis-detail-strings-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
-                </ExpandTransition>
-              </div><h3>大集合</h3><div v-for="item in analysis.distribution.collections" :key="item.nodeId" class="distribution-item">
-                <button class="distribution-row" :aria-expanded="detailLocation === `collections-${item.nodeId}`" :aria-controls="detailLocation === `collections-${item.nodeId}` ? `analysis-detail-collections-${item.nodeId}` : undefined" @click="toggleInlineDetail(`collections-${item.nodeId}`, item.fieldPath)">
-                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.itemCount }} 项</span>
-                </button>
-                <ExpandTransition>
-                  <FieldDetailPanel v-if="detailLocation === `collections-${item.nodeId}`" :id="`analysis-detail-collections-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
-                </ExpandTransition>
-              </div><h3>深层结构</h3><div v-for="item in analysis.distribution.deep" :key="item.nodeId" class="distribution-item">
-                <button class="distribution-row" :aria-expanded="detailLocation === `deep-${item.nodeId}`" :aria-controls="detailLocation === `deep-${item.nodeId}` ? `analysis-detail-deep-${item.nodeId}` : undefined" @click="toggleInlineDetail(`deep-${item.nodeId}`, item.fieldPath)">
-                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ item.path }} · {{ item.fieldPath.length }} 层</span>
-                </button>
-                <ExpandTransition>
-                  <FieldDetailPanel v-if="detailLocation === `deep-${item.nodeId}`" :id="`analysis-detail-deep-${item.nodeId}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
-                </ExpandTransition>
-              </div>
-            </details>
+        <slot v-if="active === 'data'" name="data" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :data-detail="detailProps" :toggle-watch="toggleWatch" />
+        <AnalysisView v-if="active === 'analysis'" v-model:ranking-sort="rankingSort" :ready="ready" :pending="pending" :analysis="analysis" :detail-location="detailLocation" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @analyze="analyze" @export="exportAnalysis" @detail="toggleInlineDetail" @watch="toggleWatch">
+          <template #detail="{ location, id }">
+            <InlineFieldDetail :id="id" :location="location" :selected="detailLocation" :data="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
           </template>
-        </template>
-        <template v-else-if="active === 'query'">
-          <div class="feature-heading">
-            <h2>高级检索</h2><span class="feature-caption">独立索引 · 每页 50 条</span>
-          </div>
-          <div class="query-scope">
-            <label class="toolbar-field"><span class="toolbar-field-label">分类</span><select v-model="spec.category" class="select select-sm" aria-label="查询分类"><option value="data">data</option><option value="state">state</option><option value="_errors">_errors</option><option value="meta">元信息</option><option value="app">整个应用</option></select></label><label class="toolbar-field"><span class="toolbar-field-label">条件组合</span><select v-model="spec.combine" class="select select-sm" aria-label="条件组合"><option value="all">全部满足</option><option value="any">任一满足</option></select></label>
-          </div>
-          <div v-for="(condition, index) in spec.conditions" :key="index" class="condition-row">
-            <select v-model="condition.field" class="select select-sm" :aria-label="`条件 ${index + 1} 字段`" @change="changeField(condition)">
-              <option value="path">
-                路径
-              </option><option value="key">
-                键名
-              </option><option value="value">
-                值
-              </option><option value="type">
-                基础类型
-              </option><option value="tag">
-                Nuxt 标签
-              </option>
-            </select>
-            <select v-model="condition.op" class="select select-sm" :aria-label="`条件 ${index + 1} 比较`">
-              <option v-for="op in operations(condition)" :key="op" :value="op">
-                {{ labels[op] }}
-              </option>
-            </select>
-            <select v-if="condition.field === 'value'" v-model="condition.valueType" class="select select-sm" :aria-label="`条件 ${index + 1} 值类型`">
-              <option :value="undefined">
-                string
-              </option><option v-for="type in ['number', 'boolean', 'null', 'undefined', 'bigint', 'empty']" :key="type" :value="type">
-                {{ type }}
-              </option>
-            </select>
-            <input v-model="condition.value" class="input input-sm" :aria-label="`条件 ${index + 1} 内容`" :placeholder="condition.field === 'path' ? 'products[*].price' : '比较值'">
-            <button class="btn btn-xs btn-ghost" :aria-label="`删除条件 ${index + 1}`" @click="spec.conditions.splice(index, 1)">
-              移除
-            </button>
-          </div>
-          <p class="feature-caption">
-            相对路径从所选分类开始；$ 表示应用根。支持 *、[*] 和 ["带点.的属性"]。数字值需要明确选择 number。
-          </p>
-          <div class="feature-toolbar">
-            <button class="btn btn-sm btn-ghost" :disabled="spec.conditions.length >= 10" @click="spec.conditions.push({ field: 'value', op: 'eq', valueType: 'number', value: '' })">
-              添加条件
-            </button><button class="btn btn-sm btn-primary" :disabled="!ready || !!pending" @click="query()">
-              执行查询
-            </button>
-          </div>
-          <p v-if="queryError" class="query-error" role="alert">
-            查询失败：{{ queryError }}
-          </p>
-          <div class="favorite-editor">
-            <input v-model="queryName" class="input input-sm" aria-label="查询名称" placeholder="查询名称"><button class="btn btn-sm btn-ghost" :disabled="!scope" @click="saveQuery">
-              收藏条件
-            </button>
-          </div>
-          <div v-for="favorite in favorites" :key="favorite.id" class="favorite-row">
-            <button class="btn btn-xs btn-ghost" @click="spec = JSON.parse(JSON.stringify(favorite.query))">
-              {{ favorite.name }}
-            </button><button class="btn btn-xs btn-ghost" @click="removeRule(favorite.id)">
-              删除
-            </button>
-          </div>
-          <template v-if="results">
-            <div class="feature-toolbar">
-              <p class="feature-caption query-result-status" role="status">
-                {{ results.total }} 条匹配 · {{ results.limited ? '达到 1,000 条展示上限' : results.coverage.status === 'complete' ? '扫描完整' : '仅代表已扫描范围，未匹配不等于不存在' }}
-              </p><button class="btn btn-xs btn-ghost" @click="download({ format: 'page-inspector-query/v1', snapshotId: snapshotKey, query: executedSpec, ...results }, 'payload-query-page')">
-                导出本页摘要
-              </button>
-            </div>
-            <article v-for="(match, index) in results.matches" :key="match.path" class="query-result">
-              <button class="path-button query-path-button mono" :aria-expanded="detailLocation === `query-${index}`" :aria-controls="detailLocation === `query-${index}` ? `query-detail-${index}` : undefined" @click="toggleInlineDetail(`query-${index}`, match.fieldPath)">
-                <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>{{ match.path }}</span>
-              </button><p>{{ match.type }} · {{ match.preview }}</p><p class="feature-caption">
-                {{ sourceLabel(match.sourceId) }} · {{ match.reasons.join('；') }}
-              </p><div class="feature-toolbar">
-                <button class="btn btn-xs btn-ghost" @click="copy(match)">
-                  复制摘要
-                </button><WatchButton :path="match.fieldPath" :watched="watchedPaths.has(formatPath(match.fieldPath))" :busy="pendingWatchPaths.has(formatPath(match.fieldPath))" @toggle="toggleWatch" />
-              </div>
-              <ExpandTransition>
-                <FieldDetailPanel v-if="detailLocation === `query-${index}`" :id="`query-detail-${index}`" class="inline-field-detail" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate($event, detailLocation)" />
-              </ExpandTransition>
-            </article>
-            <div class="feature-toolbar">
-              <button class="btn btn-sm btn-ghost" :disabled="results.offset === 0 || !!pending" @click="query(results.offset - 50)">
-                上一页
-              </button><span>{{ results.offset / 50 + 1 }} / {{ Math.max(1, Math.ceil(results.total / 50)) }}</span><button class="btn btn-sm btn-ghost" :disabled="results.offset + 50 >= results.total || !!pending" @click="query(results.offset + 50)">
-                下一页
-              </button>
-            </div>
+        </AnalysisView>
+        <QueryView v-else-if="active === 'query'" v-model:spec="spec" v-model:query-name="queryName" :ready="!!ready" :pending="pending" :can-save="!!scope" :query-error="queryError" :favorites="favorites" :results="results" :source-labels="sourceLabels" :detail-location="detailLocation" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @query="query()" @page="query" @save="saveQuery" @remove="rules.removeRule" @export="exportQuery" @copy="artifacts.copy" @detail="toggleInlineDetail" @watch="toggleWatch">
+          <template #detail="{ location, id }">
+            <InlineFieldDetail :id="id" :location="location" :selected="detailLocation" :data="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
           </template>
-        </template>
-        <template v-else-if="active === 'watch'">
-          <div class="feature-heading">
-            <h2>字段关注</h2><span>{{ watches.length }} / 50</span>
-          </div>
-          <p class="feature-caption">
-            仅比较相邻成功采集的初始 payload。基线只留在当前面板会话，关闭面板后清除。数组、Map 和 Set 按位置关注，重新排序会改变目标。
-          </p>
-          <p v-if="!scope" class="notice notice-warning">
-            初始文档或唯一应用声明标识不可确认，请选择有唯一标识的应用后添加关注。
-          </p>
-          <p v-else class="feature-caption break-text">
-            范围：{{ scope.origin }}{{ scope.pathname }} · 应用 {{ scope.app }}
-          </p>
-          <label class="checkbox-label"><input v-model="includeQuery" type="checkbox">新规则的作用域包含 URL 查询参数</label>
-          <div class="watch-editor">
-            <input v-model="watchPath" class="input input-sm" aria-label="关注路径" placeholder="$[&quot;data&quot;][&quot;products&quot;][0]"><input v-model="watchName" class="input input-sm" aria-label="关注别名" placeholder="别名（可选）"><button class="btn btn-sm btn-primary" :disabled="!scope" @click="addPath">
-              添加关注
-            </button>
-          </div>
-          <article v-for="rule in watches" :key="rule.id" class="watch-row">
-            <div class="feature-toolbar">
-              <input :value="rule.name" class="input input-sm" :aria-label="`重命名关注 ${rule.name}`" @change="rename(rule, $event)"><strong class="watch-status">{{ comparison(rule.id)?.status || '等待比较' }}</strong>
-            </div><button class="path-button mono" @click="locate(rule.path)">
-              {{ formatPath(rule.path) }}
-            </button><p>当前：{{ comparison(rule.id)?.current.preview ?? '等待成功采集' }}</p><p class="feature-caption">
-              上次：{{ comparison(rule.id)?.previous?.preview ?? '暂无基线' }} · {{ comparison(rule.id)?.current.type }}
-            </p><p v-if="comparison(rule.id)?.current.reason" class="feature-caption">
-              {{ comparison(rule.id)?.current.reason }}
-            </p><button class="btn btn-xs btn-ghost" @click="removeRule(rule.id)">
-              取消关注
-            </button>
-          </article>
-          <p v-if="!watches.length" class="empty-section">
-            在字段、排名或查询结果中点击“关注”，也可以输入精确路径。
-          </p>
-          <details v-if="otherWatches.length" class="disclosure-section">
-            <summary class="disclosure-summary">
-              <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>页面范围不匹配 · {{ otherWatches.length }} 项</span>
-            </summary><div v-for="rule in otherWatches" :key="rule.id" class="favorite-row">
-              <span>{{ rule.name }} · {{ rule.scope.pathname }} · {{ rule.scope.app }}</span><button class="btn btn-xs btn-ghost" @click="removeRule(rule.id)">
-                删除
-              </button>
-            </div>
-          </details>
-        </template>
+        </QueryView>
+        <WatchView v-else-if="active === 'watch'" v-model:draft="watchDraft" :scope="scope" :watches="watches" :other-watches="otherWatches" :comparisons="comparisons" @add="addPath" @rename="rules.rename" @locate="locate" @remove="rules.removeRule" />
       </div>
       <ExpandTransition>
-        <FieldDetailPanel v-if="active !== 'data' && detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="emit('notice', $event)" @watch="toggleWatch" @locate="locate" />
+        <FieldDetailPanel v-if="active !== 'data' && detailLocation === null && (detail || detailLoading || detailError)" v-bind="detailProps" @close="closeDetail" @notice="notice" @watch="toggleWatch" @locate="locate" />
       </ExpandTransition>
     </div>
   </section>

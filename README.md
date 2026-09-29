@@ -159,6 +159,8 @@ pnpm --filter @page-inspector/extension test:e2e:nuxt --project=nuxt4-static-ext
 
 ## 架构与权限
 
+界面组件、状态归属和新增功能模板见 [组件与数据流约定](docs/component-patterns.md)。当前采用 Ark UI Vue 作为交互基础，数据、分析、检索、关注、SEO 和网络工作区均按业务会话、视图状态与展示组件拆分，可直接参考现有受控表单和异步结果处理方式。
+
 ```mermaid
 flowchart LR
     A[页面采集函数] -->|原始文本与来源| B[后台协调请求]
