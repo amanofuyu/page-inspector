@@ -1,0 +1,31 @@
+import { clickText, expect, fillField, test } from '../e2e/fixtures'
+
+test('真实 Nuxt SEO：SSR／预渲染 HTML、水合变化与纯 CSR', async ({ extension }, testInfo) => {
+  const { website, panel } = extension
+  const { base } = testInfo.project.metadata
+  const response = await website.goto(`${base}seo`)
+  const html = await response!.text()
+  expect(html).toContain('<title>SEO 服务端标题</title>')
+  expect(html).toContain('HTML 中的描述')
+  await expect(website.locator('[data-testid="seo-fixture"]')).toContainText('已水合')
+  await expect(website).toHaveTitle('SEO 客户端标题')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.page-url')?.textContent)).toContain('/seo')
+  await clickText(panel, 'SEO', '.workspace-tabs')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.textContent)).toContain('SEO 客户端标题')
+  await clickText(panel, '读取参考 HTML')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.getAttribute('data-change'))).toBe('reference')
+  expect(await panel.evaluate(() => document.querySelector('[data-key="title"]')?.textContent)).toContain('SEO 服务端标题')
+  await fillField(panel, '[aria-label="搜索 SEO 字段"]', 'JSON-LD')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('.seo-row')?.textContent)).toContain('Article')
+  const client = await website.goto(`${base}csr`)
+  const clientHtml = await client!.text()
+  expect(clientHtml).not.toContain('<title>纯 CSR SEO 标题</title>')
+  await expect(website).toHaveTitle('纯 CSR SEO 标题')
+  await expect.poll(() => panel.evaluate(() => !!document.querySelector('[aria-label="搜索 SEO 字段"]'))).toBe(true)
+  await fillField(panel, '[aria-label="搜索 SEO 字段"]', 'title')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.textContent)).toContain('纯 CSR SEO 标题')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.getAttribute('data-change'))).toBe('unknown')
+  await clickText(panel, '读取参考 HTML')
+  await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.getAttribute('data-change'))).toBe('reference')
+  expect(await panel.evaluate(() => document.querySelector('[data-key="title"] .seo-values > div:first-child')?.textContent)).not.toContain('纯 CSR SEO 标题')
+})

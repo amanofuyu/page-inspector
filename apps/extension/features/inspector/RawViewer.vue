@@ -31,7 +31,7 @@ watch(() => props.source, async (source) => {
 
 <template>
   <div class="raw-viewer">
-    <p v-if="source.error" class="notice notice-warning">
+    <p v-if="source.error" class="notice notice-error">
       {{ source.error }}
     </p>
     <p v-if="source.text === null" class="empty-section">

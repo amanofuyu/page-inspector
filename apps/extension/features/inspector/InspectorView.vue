@@ -1,19 +1,21 @@
 <script lang="ts" setup>
 import type { responseSnapshot } from '../network/session'
-import { CircleAlert, Download, Info, LockKeyhole, RefreshCw, ScanLine, Search } from '@lucide/vue'
+import { ChevronRight, CircleAlert, Download, Info, LockKeyhole, RefreshCw, ScanLine, Search } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import ThemeController from '@/components/theme-controller.vue'
 import { useInspection } from '@/composables/useInspection'
+import { useToast } from '@/composables/useToast'
 import DataTreeNode from '@/features/inspector/DataTreeNode.vue'
 import RawViewer from '@/features/inspector/RawViewer.vue'
 import { buildPayloadView, exportNode, searchTree } from '@/features/nuxt/format'
 import { parseApp } from '@/features/nuxt/parse'
 import { unwrap } from '@/features/nuxt/types'
 import NetworkView from '../network/NetworkView.vue'
-import ExpandTransition from './ExpandTransition.vue'
+import SeoView from '../seo/SeoView.vue'
 import FeatureWorkbench from './FeatureWorkbench.vue'
 import { vResizeMotion } from './motion'
+import ToastNotice from './ToastNotice.vue'
 
 const props = defineProps<{
   targetTabId?: number
@@ -21,6 +23,13 @@ const props = defineProps<{
 }>()
 const { result, status: pageStatus, message, currentUrl, snapshotWarning, refresh, tabId } = useInspection(props.targetTabId === undefined ? undefined : { tabId: props.targetTabId })
 const activeFeature = ref('data')
+const seoVisited = ref(false)
+const seoView = ref<InstanceType<typeof SeoView> | null>(null)
+const networkView = ref<InstanceType<typeof NetworkView> | null>(null)
+watch(activeFeature, (value) => {
+  if (value === 'seo')
+    seoVisited.value = true
+})
 const workbench = ref<InstanceType<typeof FeatureWorkbench> | null>(null)
 const responseOverride = shallowRef<ReturnType<typeof responseSnapshot> | null>(null)
 // 手动重读时继续展示当前快照，只有导航、空结果或成功的新快照会替换内容。
@@ -32,13 +41,14 @@ const status = computed(() => {
   return pageStatus.value
 })
 const snapshot = computed(() => responseOverride.value?.snapshot ?? result.value?.snapshot)
-const statusLabel = computed(() => responseOverride.value ? '浏览器响应' : ({ loading: '读取中', ready: '已采集', empty: '无数据', error: '读取失败' })[pageStatus.value])
+const statusLabel = computed(() => activeFeature.value === 'seo' ? ({ idle: '等待采集', loading: '读取中', ready: 'SEO 已采集', error: '读取失败' })[seoView.value?.status ?? 'idle'] : responseOverride.value ? '浏览器响应' : ({ loading: '读取中', ready: '已采集', empty: '无数据', error: '读取失败' })[pageStatus.value])
+const pageTitle = computed(() => activeFeature.value === 'seo' ? seoView.value?.dom?.fields.find(field => field.key === 'title')?.value || '页面 SEO 检查' : snapshot.value?.title || 'Nuxt 数据查看器')
 const appIndex = ref(0)
 const sourceIndex = ref(0)
 const view = ref('data')
 const query = ref('')
 const search = refDebounced(query, 150)
-const notice = ref('')
+const { toast, show: showNotice, dismiss: dismissNotice, pause: pauseNotice, resume: resumeNotice } = useToast()
 function inspectResponse(value: ReturnType<typeof responseSnapshot>) {
   responseOverride.value = value
   appIndex.value = 0
@@ -46,7 +56,7 @@ function inspectResponse(value: ReturnType<typeof responseSnapshot>) {
   activeFeature.value = 'data'
   view.value = 'data'
   query.value = ''
-  notice.value = ''
+  dismissNotice()
 }
 const application = computed(() => snapshot.value?.apps[appIndex.value])
 const parsed = computed(() => application.value ? parseApp(application.value) : null)
@@ -78,10 +88,10 @@ function download(text: string, filename: string) {
     link.download = filename
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
-    notice.value = '已发起下载'
+    showNotice('已发起下载')
   }
   catch {
-    notice.value = '导出失败，请重试。'
+    showNotice('导出失败，请重试。')
   }
 }
 function exportCurrent() {
@@ -103,13 +113,13 @@ function selectPageApplication() {
     selectedDeclaredId = apps[appIndex.value]?.declaredId ?? null
 }
 function returnToPageSnapshot() {
-  if (responseOverride.value)
+  if (responseOverride.value && activeFeature.value !== 'seo')
     activeFeature.value = 'data'
   responseOverride.value = null
   selectPageApplication()
   sourceIndex.value = 0
   query.value = ''
-  notice.value = ''
+  dismissNotice()
 }
 watch(result, (next, previous) => {
   // 同一文档的手动重读保留搜索与来源选择；导航和独立响应切换仍重置视图。
@@ -124,7 +134,7 @@ watch(result, (next, previous) => {
     else if (!application.value?.sources[sourceIndex.value]) {
       sourceIndex.value = 0
     }
-    notice.value = ''
+    dismissNotice()
   }
   else {
     returnToPageSnapshot()
@@ -136,7 +146,7 @@ watch(appIndex, () => {
 })
 watch(view, () => {
   query.value = ''
-  notice.value = ''
+  dismissNotice()
 })
 </script>
 
@@ -157,86 +167,91 @@ watch(view, () => {
       <section class="page-card glass-card" aria-label="当前页面">
         <div class="section-heading">
           <span class="eyebrow">当前页面</span>
-          <span v-resize-motion.inline="statusLabel" class="capture-status" :data-status="responseOverride ? status : pageStatus" role="status">
+          <span v-resize-motion.inline="statusLabel" class="capture-status" :data-status="activeFeature === 'seo' ? seoView?.status : responseOverride ? status : pageStatus" role="status">
             <span class="status-dot" aria-hidden="true" />{{ statusLabel }}
           </span>
         </div>
-        <h2 class="page-title" :title="snapshot?.title">
-          {{ snapshot?.title || 'Nuxt 数据查看器' }}
+        <h2 class="page-title" :title="pageTitle">
+          {{ pageTitle }}
         </h2>
         <p class="page-url" :title="currentUrl">
           {{ currentUrl || '等待当前标签页…' }}
         </p>
         <div class="page-actions">
-          <span class="capture-time">{{ snapshot ? `${new Date(snapshot.collectedAt).toLocaleTimeString()} 采集` : '读取当前标签页的初始数据' }}</span>
-          <button class="btn btn-sm btn-ghost refresh-button" :disabled="pageStatus === 'loading'" @click="refresh">
-            <RefreshCw :size="14" :class="{ 'animate-spin': pageStatus === 'loading' }" aria-hidden="true" />{{ pageStatus === 'loading' ? '读取中' : '重新读取' }}
+          <span class="capture-time">{{ activeFeature === 'seo' ? (seoView?.dom ? `${new Date(seoView.dom.sampledAt).toLocaleTimeString()} SEO 采样` : '读取当前主文档 SEO') : snapshot ? `${new Date(snapshot.collectedAt).toLocaleTimeString()} 采集` : '读取当前标签页的初始数据' }}</span>
+          <button class="btn btn-sm btn-ghost refresh-button" :disabled="activeFeature === 'seo' ? seoView?.status === 'loading' : pageStatus === 'loading'" @click="activeFeature === 'seo' ? seoView?.refresh() : refresh()">
+            <RefreshCw :size="14" :class="{ 'animate-spin': activeFeature === 'seo' ? seoView?.status === 'loading' : pageStatus === 'loading' }" aria-hidden="true" />{{ (activeFeature === 'seo' ? seoView?.status === 'loading' : pageStatus === 'loading') ? '读取中' : '重新读取' }}
           </button>
         </div>
-        <p v-if="pageStatus === 'error' && result && !responseOverride" class="refresh-error" role="alert">
+        <p v-if="activeFeature !== 'seo' && pageStatus === 'error' && result && !responseOverride" class="refresh-error" role="alert">
           重新读取失败，仍显示上次结果：{{ message }}
         </p>
       </section>
 
       <nav class="workspace-tabs glass-card" aria-label="工作区">
-        <button v-for="item in [{ id: 'data', label: '数据' }, { id: 'analysis', label: '分析' }, { id: 'query', label: '检索' }, { id: 'watch', label: '关注' }]" :key="item.id" :aria-pressed="activeFeature === item.id" :class="{ active: activeFeature === item.id }" @click="activeFeature = item.id">
+        <button v-for="item in [{ id: 'data', label: '数据' }, { id: 'analysis', label: '分析' }, { id: 'query', label: '检索' }, { id: 'watch', label: '关注' }, { id: 'seo', label: 'SEO' }]" :key="item.id" :aria-pressed="activeFeature === item.id" :class="{ active: activeFeature === item.id }" @click="activeFeature = item.id">
           {{ item.label }}
         </button><button v-if="devtools" :aria-pressed="activeFeature === 'network'" :class="{ active: activeFeature === 'network' }" @click="activeFeature = 'network'">
           网络
         </button>
       </nav>
-      <section v-if="status === 'loading'" class="empty-state glass-card" role="status">
-        <span class="empty-state-icon"><span class="loading loading-spinner loading-md" /></span>
-        <h2>正在读取页面数据</h2>
-        <p>检测内嵌数据并读取页面声明的外部 payload。</p>
-      </section>
-      <section v-else-if="status === 'error'" class="empty-state empty-state-error glass-card" role="alert">
-        <span class="empty-state-icon"><CircleAlert :size="28" :stroke-width="1.5" aria-hidden="true" /></span>
-        <h2>暂时无法读取</h2>
-        <p>{{ message }}</p>
-        <button class="btn btn-sm btn-primary" @click="refresh">
-          重试
-        </button>
-      </section>
-      <section v-else-if="status === 'empty'" class="empty-state glass-card">
-        <span class="empty-state-icon"><ScanLine :size="28" :stroke-width="1.5" aria-hidden="true" /></span>
-        <h2>未检测到 Nuxt 数据</h2>
-        <p>当前文档中没有支持的 Nuxt JSON payload 节点。页面加载完成后可重新读取。</p>
-      </section>
-      <template v-else-if="application && parsed">
-        <p v-if="snapshotWarning && !responseOverride" class="notice notice-warning" role="status">
-          {{ snapshotWarning }}
-        </p>
-        <p v-for="warning in snapshot?.warnings" :key="warning" class="notice notice-warning">
-          {{ warning }}
-        </p>
-        <label v-if="snapshot && snapshot.apps.length > 1" class="field-label">
-          应用
-          <select v-model="appIndex" class="select select-sm w-full">
-            <option v-for="(app, index) in snapshot.apps" :key="app.id" :value="index">{{ app.label }}</option>
-          </select>
-        </label>
-        <details v-show="activeFeature === 'data'" class="source-details glass-card">
-          <summary>数据来源与范围</summary>
-          <p>初始文档：{{ snapshot?.initialUrl || '无法确认' }}</p>
-          <div v-for="(item, index) in application.sources" :key="index" class="source-item">
-            <strong>{{ item.kind === 'inline' ? '页面内嵌' : '外部 payload' }}</strong>
-            <p>{{ item.url || '当前文档' }}</p>
-            <small>{{ new Date(item.fetchedAt).toLocaleString() }} · {{ size(item.bytes) }}</small>
-          </div>
-          <p v-if="application.externalUrl">
-            外部资源为本次重新获取，无法保证与最初 HTML 的版本完全一致。
+      <template v-if="activeFeature !== 'seo'">
+        <section v-if="status === 'loading'" class="empty-state glass-card" role="status">
+          <span class="empty-state-icon"><span class="loading loading-spinner loading-md" /></span>
+          <h2>正在读取页面数据</h2>
+          <p>检测内嵌数据并读取页面声明的外部 payload。</p>
+        </section>
+        <section v-else-if="status === 'error'" class="empty-state empty-state-error glass-card" role="alert">
+          <span class="empty-state-icon"><CircleAlert :size="28" :stroke-width="1.5" aria-hidden="true" /></span>
+          <h2>暂时无法读取</h2>
+          <p>{{ message }}</p>
+          <button class="btn btn-sm btn-primary" @click="refresh">
+            重试
+          </button>
+        </section>
+        <section v-else-if="status === 'empty'" class="empty-state glass-card">
+          <span class="empty-state-icon"><ScanLine :size="28" :stroke-width="1.5" aria-hidden="true" /></span>
+          <h2>未检测到 Nuxt 数据</h2>
+          <p>当前文档中没有支持的 Nuxt JSON payload 节点。页面加载完成后可重新读取。</p>
+        </section>
+        <template v-else-if="application && parsed">
+          <p v-if="snapshotWarning && !responseOverride" class="notice notice-warning" role="status">
+            {{ snapshotWarning }}
           </p>
-          <p>仅展示初始 payload，不包含页面运行时状态和独立运行时配置。</p>
-        </details>
+          <p v-for="warning in snapshot?.warnings" :key="warning" class="notice notice-warning">
+            {{ warning }}
+          </p>
+          <label v-if="snapshot && snapshot.apps.length > 1" class="field-label">
+            应用
+            <select v-model="appIndex" class="select select-sm w-full">
+              <option v-for="(app, index) in snapshot.apps" :key="app.id" :value="index">{{ app.label }}</option>
+            </select>
+          </label>
+          <details v-show="activeFeature === 'data'" class="source-details disclosure-section glass-card">
+            <summary class="disclosure-summary">
+              <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>数据来源与范围</span>
+            </summary>
+            <p>初始文档：{{ snapshot?.initialUrl || '无法确认' }}</p>
+            <div v-for="(item, index) in application.sources" :key="index" class="source-item">
+              <strong>{{ item.kind === 'inline' ? '页面内嵌' : '外部 payload' }}</strong>
+              <p>{{ item.url || '当前文档' }}</p>
+              <small>{{ new Date(item.fetchedAt).toLocaleString() }} · {{ size(item.bytes) }}</small>
+            </div>
+            <p v-if="application.externalUrl">
+              外部资源为本次重新获取，无法保证与最初 HTML 的版本完全一致。
+            </p>
+            <p>仅展示初始 payload，不包含页面运行时状态和独立运行时配置。</p>
+          </details>
+        </template>
       </template>
-      <p v-if="responseOverride" class="notice notice-warning">
+      <p v-if="responseOverride && activeFeature !== 'seo'" class="notice notice-warning">
         当前查看显式选择的浏览器响应。<button class="btn btn-xs btn-ghost" @click="returnToPageSnapshot">
           返回页面快照
         </button>
       </p>
-      <NetworkView v-if="devtools" :active="activeFeature === 'network'" :snapshot="result?.snapshot" :app="result?.snapshot?.apps[appIndex]" :document-id="result?.documentId" :tab-id="targetTabId" @notice="notice = $event" @inspect="inspectResponse" />
-      <FeatureWorkbench ref="workbench" :aria-busy="pageStatus === 'loading' && !responseOverride" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" @notice="notice = $event" @activate="activeFeature = $event">
+      <NetworkView v-if="devtools" ref="networkView" :active="activeFeature === 'network'" :snapshot="result?.snapshot" :app="result?.snapshot?.apps[appIndex]" :document-id="result?.documentId" :tab-id="targetTabId" @notice="showNotice" @inspect="inspectResponse" />
+      <SeoView v-if="seoVisited" ref="seoView" :active="activeFeature === 'seo'" :tab-id="tabId" :network="networkView?.session" @notice="showNotice" />
+      <FeatureWorkbench ref="workbench" :aria-busy="pageStatus === 'loading' && !responseOverride" :app="application" :snapshot="snapshot" :tab-id="tabId" :status="status" :active="activeFeature" @notice="showNotice" @activate="activeFeature = $event">
         <template #data="{ watchedPaths, pendingWatchPaths }">
           <section v-if="application && parsed" v-show="activeFeature === 'data'" v-resize-motion="`${view}:${!!search.trim()}`" class="data-card glass-card" aria-label="Payload 数据">
             <div class="data-heading">
@@ -304,14 +319,14 @@ watch(view, () => {
                 <p class="result-path">
                   {{ node.path }}
                 </p>
-                <DataTreeNode :node="node" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="notice = $event" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
+                <DataTreeNode :node="node" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="showNotice" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
               </div>
               <p v-if="!found.matches.length" class="empty-section">
                 没有匹配的字段，试试其他关键词。
               </p>
             </div>
             <div v-else class="tree-container">
-              <DataTreeNode :key="`${responseOverride?.snapshot.snapshotId ?? result?.documentId ?? result?.requestId}:${application.id}:${view}`" :node="selectedNode" initial-open :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="notice = $event" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
+              <DataTreeNode :key="`${responseOverride?.snapshot.snapshotId ?? result?.documentId ?? result?.requestId}:${application.id}:${view}`" :node="selectedNode" initial-open :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @notice="showNotice" @watch="workbench?.toggleWatch($event)" @locate="workbench?.locate($event)" />
             </div>
             <p class="export-note">
               视图导出保留类型与引用标记；原文导出保留采集文本。
@@ -319,15 +334,11 @@ watch(view, () => {
           </section>
         </template>
       </FeatureWorkbench>
-      <ExpandTransition>
-        <p v-if="notice" class="notice" role="status">
-          {{ notice }}
-        </p>
-      </ExpandTransition>
     </main>
     <footer class="app-footer">
       <span>NUXT 3 / 4</span>
       <span class="privacy-note"><LockKeyhole :size="11" aria-hidden="true" />数据仅在本地查看</span>
     </footer>
+    <ToastNotice :toast="toast" @dismiss="dismissNotice" @pause="pauseNotice" @resume="resumeNotice" />
   </div>
 </template>

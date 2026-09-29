@@ -1,6 +1,6 @@
 # Page Inspector
 
-用于查看 Nuxt 3/4 页面初始 payload 的 Chromium 浏览器扩展，基于 WXT、Vue 3 和 TypeScript。
+用于查看 Nuxt 3/4 初始 payload 和页面 SEO 数据的 Chromium 浏览器扩展，基于 WXT、Vue 3 和 TypeScript。SEO 检查也支持普通 HTML 与纯 CSR 页面。
 
 ## 功能
 
@@ -14,6 +14,8 @@
 - Payload 来源字节分析、独立字段估算排名与分析报告。
 - 高级条件检索、查询收藏、字段关注和相邻成功快照比较；各入口同步显示已关注状态，再次点击可取消。
 - 共用 DevTools 面板、请求元信息、按需正文读取及来源证据核对。
+- 独立 SEO 工作区，检查基础标签、canonical／robots、社交标签、hreflang、JSON-LD、H1 和相关 HTTP 响应头。
+- 对照实际文档 HTML 与当前 DOM，区分初始已有及运行后新增／修改／删除；支持参考 HTML、字段筛选、问题定位、就地详情与 JSON／Markdown 导出。
 
 ## 仓库结构
 
@@ -56,6 +58,18 @@ pnpm dev
 
 手动「重新读取」时保留当前结果，加载反馈至少显示 400ms；慢请求不追加固定等待。同一文档重读保留数据树展开状态、搜索条件和有效的原文来源选择；失败时保留上次结果并在页面卡片提示。切换标签页或整页导航仍立即清除旧内容，避免混淆不同页面的数据。
 
+## SEO 检查
+
+打开侧栏或 DevTools 的「SEO」页签即可查看当前主文档，不要求页面存在 Nuxt payload。侧栏默认读取当前 DOM；「读取参考 HTML」重新请求当前地址，并始终标为参考对比。
+
+需要确认字段是否随初始 HTML 送达时，在 DevTools 中点击「刷新并捕获 HTML」。仅在文档身份、导航起点、URL 和 HAR 候选均可关联时显示「初始已有／运行后新增／修改／删除」。已关联的基线可供同一页面的侧栏读取；侧栏已打开时点击重新读取即可获取。
+
+初始 HTML 也可能来自预渲染、静态文件或缓存；当前 DOM 包含初始标签与客户端变化。没有可靠基线时保留「来源未确认」，不会把全部 DOM 字段当成 CSR。SPA 换路由后清除旧基线。
+
+字段支持按名称／值、分组、来源状态和缺失／空值／多值筛选，点击当前行展开详情。问题列表解释 canonical 冲突、重复或空标签、非法 JSON-LD、noindex 变化及 HTTP 索引规则，复制和导出使用右下角 toast。
+
+首版采用手动采样与导航后刷新。含 iframe 的页面暂不确认 HAR 主文档来源，参考请求不跟随重定向；持续观察、时间线和完整富结果审计属于后续阶段。使用方式、预算与边界见 [SEO 实现记录](docs/seo-inspection-implementation.md)。
+
 ## 项目图标
 
 图标使用酒红色圆角底、花括号和代表选中字段的亮点。矢量原稿位于 `apps/extension/public/icon.svg`，扩展按钮、侧栏标题及扩展管理页使用 `apps/extension/public/icon/` 下的 16、32、48、128 像素 PNG；页面品牌标识直接使用 SVG。
@@ -82,7 +96,7 @@ pnpm dev
 | `pnpm test:e2e:all`             | 构建后运行协议、真实 Nuxt 和 DevTools 验收  |
 | `pnpm prepare:hooks`            | 手动安装提交检查钩子                        |
 
-开发时在不同终端分别运行扩展和所需 Nuxt 应用。两个应用都提供 `/basic`、`/types`、`/state`、`/errors`、`/custom`、`/route-a`、`/route-b`、`/empty`、`/csr` 、`/large` 和 `/features` 页面。
+开发时在不同终端分别运行扩展和所需 Nuxt 应用。两个应用都提供 `/basic`、`/types`、`/state`、`/errors`、`/custom`、`/route-a`、`/route-b`、`/empty`、`/csr` 、`/large`、`/features` 和 `/seo` 页面。
 
 E2E 前按项目约定先取得用户确认。首次使用需安装测试浏览器：
 
@@ -147,12 +161,15 @@ flowchart LR
 - `apps/extension/entrypoints/background/`：请求取消、文档身份核验、侧边栏入口。
 - `apps/extension/composables/useInspection.ts`：窗口与标签页归属、刷新、请求失效。
 - `apps/extension/features/inspector/`：树形查看和原文高亮。
+- `apps/extension/features/seo/`：SEO 采集、HTML 解析、来源对比、规则与工作区；`workers/seo.worker.ts` 隔离 HTML 解析。
 - `apps/extension/tests/fixtures/nuxt/`：固定协议样本及来源摘要。
 - `apps/extension/tests/e2e/`：协议样例与通用侧栏夹具；`tests/real-nuxt/`：真实应用验收。
 
 生成的 manifest 仅申请 `storage`、`scripting`、`sidePanel`，以及 HTTP／HTTPS 主机访问权限。主机权限用于跨标签页自动读取和加载声明的外部 payload；不读取 cookies API、不使用 debugger，不上传采集内容。
 
 ## 验证记录
+
+2026-09-29 的 SEO 首版已通过 114 项单元测试、19 项协议侧栏、30 项真实 Nuxt 和 2 项 DevTools 用例（含定向复验），以及三个应用类型检查、扩展构建和六组 Nuxt 生产构建。执行范围、端口调整及尚未覆盖的边界见 [最新验证记录](docs/validation.md)；以下保留此前阶段记录。
 
 迁移后通过 48 项单元测试、5 项协议页面 E2E、18 项真实 Nuxt E2E，以及三个应用的类型检查和六组 Nuxt 生产构建。真实应用验收覆盖水合就绪、数据、特殊类型、Money 自定义类型、状态初值、NuxtLink 导航、整页刷新及原文导出。
 

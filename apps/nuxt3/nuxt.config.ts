@@ -13,7 +13,7 @@ export default defineNuxtConfig({
   experimental: { renderJsonPayloads: true, payloadExtraction: profile === 'static-external' },
   nitro: {
     output: { dir: `.output/${profile}` },
-    prerender: { crawlLinks: false, routes: isStatic ? ['/', '/basic', '/types', '/state', '/custom', '/route-a', '/route-b', '/empty', '/large', '/features'] : [] },
+    prerender: { crawlLinks: false, routes: isStatic ? ['/', '/basic', '/types', '/state', '/custom', '/route-a', '/route-b', '/empty', '/large', '/features', '/seo', '/csr'] : [] },
   },
   routeRules: { '/csr': { ssr: false } },
 })

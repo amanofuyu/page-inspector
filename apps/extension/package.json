@@ -25,7 +25,8 @@
   "dependencies": {
     "@unhead/vue": "^3.4.1",
     "@webext-core/messaging": "^4.0.0",
-    "devalue": "6.0.2"
+    "devalue": "6.0.2",
+    "parse5": "8.0.1"
   },
   "devDependencies": {
     "@lucide/vue": "^1.48.0",

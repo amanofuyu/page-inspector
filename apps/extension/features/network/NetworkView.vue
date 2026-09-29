@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { NetworkApi, NetworkRecord } from './session'
+import { ChevronRight } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import ExpandTransition from '../inspector/ExpandTransition.vue'
 import { vResizeMotion } from '../inspector/motion'
@@ -112,6 +113,7 @@ onMounted(() => {
   session.start(chrome.devtools.network as unknown as NetworkApi)
 })
 onBeforeUnmount(() => session.dispose())
+defineExpose({ session })
 </script>
 
 <template>
@@ -122,7 +124,7 @@ onBeforeUnmount(() => session.dispose())
     <p class="feature-caption">
       {{ new Date(session.observedAt).toLocaleTimeString() }} 开始观察。晚打开 DevTools 可能缺少历史请求，SSR 服务端 API 调用在此不可见。
     </p>
-    <p v-if="startupError" class="notice notice-warning">
+    <p v-if="startupError" class="notice notice-error">
       {{ startupError }}
     </p>
     <div class="feature-toolbar">
@@ -178,7 +180,7 @@ onBeforeUnmount(() => session.dispose())
           </div>
           <p v-if="selected.contentSize === null" class="feature-caption">
             正文大小未知，默认只展示元信息。
-          </p><p v-if="selected.bodyError" class="notice notice-warning">
+          </p><p v-if="selected.bodyError" class="notice notice-error">
             {{ selected.bodyError }}
           </p>
           <template v-if="body">
@@ -188,8 +190,10 @@ onBeforeUnmount(() => session.dispose())
               </button>
             </div><pre class="response-preview">{{ body.text.slice(0, previewLimit) }}</pre><button v-if="body.text.length > previewLimit" class="btn btn-xs btn-ghost" @click="previewLimit += 8000">
               再显示 8,000 字符
-            </button><details v-if="association?.source">
-              <summary>与已采集来源比较</summary><p class="feature-caption">
+            </button><details v-if="association?.source" class="disclosure-section">
+              <summary class="disclosure-summary">
+                <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>与已采集来源比较</span>
+              </summary><p class="feature-caption">
                 {{ body.text === association.source.text ? '完整文本一致' : '完整文本不同，以下仅为来源预览' }} · {{ association.source.transport }}
               </p><pre class="response-preview">{{ association.source.text?.slice(0, 8000) ?? '来源正文不可用' }}</pre>
             </details>

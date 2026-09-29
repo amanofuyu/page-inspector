@@ -126,3 +126,34 @@ test('减少动态效果时立即展开与切换，并取消正在执行的尺�
   await clickText(panel, '检索', '.workspace-tabs')
   expect(await panel.evaluate(() => document.querySelector('.feature-primary')!.getAnimations().length)).toBe(0)
 })
+
+test('来源卡片收起结束时外边距不再造成高度跳变', async ({ extension }) => {
+  const { panel } = extension
+  for (const width of [320, 800]) {
+    await panel.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+    const collapsed = await panel.evaluate(() => document.querySelector('.source-details')!.getBoundingClientRect().height)
+    await panel.click('.source-details > summary')
+    await panel.evaluate(async () => {
+      await Promise.all(document.querySelector('.source-details')!.getAnimations({ subtree: true }).map(animation => animation.finished))
+    })
+    const frames = await panel.evaluate(async () => {
+      const source = document.querySelector<HTMLDetailsElement>('.source-details')!
+      const frames: { height: number, hidden: boolean }[] = []
+      source.querySelector<HTMLElement>('summary')!.click()
+      const until = performance.now() + 400
+      while (performance.now() < until) {
+        await new Promise(requestAnimationFrame)
+        frames.push({ height: source.getBoundingClientRect().height, hidden: getComputedStyle(source, '::details-content').contentVisibility === 'hidden' })
+      }
+      return frames
+    })
+    // 正文最后一个可见帧应已接近折叠高度，不能等隐藏时再突然移除外边距。
+    const lastVisible = frames.filter(frame => !frame.hidden).at(-1)!
+    expect(lastVisible).toBeDefined()
+    expect(Math.abs(lastVisible.height - collapsed)).toBeLessThan(1)
+    expect(frames.at(-1)!.hidden).toBe(true)
+    expect(frames.at(-1)!.height).toBeCloseTo(collapsed, 1)
+    for (let index = 1; index < frames.length; index++)
+      expect(frames[index]!.height).toBeLessThanOrEqual(frames[index - 1]!.height + 0.1)
+  }
+})

@@ -11,6 +11,7 @@ export interface HarRequest {
     method?: string
   }
   response?: {
+    headers?: { name: string, value: string }[]
     status?: number
     bodySize?: number
     redirectURL?: string
@@ -316,6 +317,14 @@ export class NetworkSession {
       this.bodies.set(id, body)
     }
     return body
+  }
+
+  /** 仅按需公开 SEO 有关响应头，不保存请求凭据或 Set-Cookie。 */
+  seoHeaders(id: string) {
+    return (this.handles.get(id)?.response?.headers ?? [])
+      .filter(header => ['x-robots-tag', 'link', 'content-type'].includes(header.name.toLowerCase()))
+      .slice(0, 100)
+      .map(header => ({ name: header.name.toLowerCase(), value: header.value.slice(0, 16384), truncated: header.value.length > 16384 }))
   }
 
   async read(id: string): Promise<ResponseBody> {

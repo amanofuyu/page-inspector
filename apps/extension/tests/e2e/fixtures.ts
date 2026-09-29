@@ -60,7 +60,7 @@ export class SidePanel {
   }
 
   async click(selector: string) {
-    // 等待侧栏打开动画与按钮位置稳定，避免首次点击落在移动中的元素之外。
+    // 等待位置稳定且中心可点击，避免点击移动中的元素或浮层遮挡区域。
     let previous = ''
     let stable = 0
     await expect.poll(async () => {
@@ -70,12 +70,15 @@ export class SidePanel {
           return ''
         element.scrollIntoView({ block: 'center' })
         const rect = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+        if (!rect.width || !rect.height || !hit || !element.contains(hit))
+          return ''
         return JSON.stringify([rect.x, rect.y, rect.width, rect.height, window.innerWidth])
       }, selector)
       stable = geometry && geometry === previous ? stable + 1 : 0
       previous = geometry
       return stable
-    }, { intervals: [80], timeout: 5000 }).toBeGreaterThanOrEqual(2)
+    }, { intervals: [80], timeout: 8000 }).toBeGreaterThanOrEqual(2)
     const point = await this.evaluate((query) => {
       const element = document.querySelector<HTMLElement>(query)
       if (!element)

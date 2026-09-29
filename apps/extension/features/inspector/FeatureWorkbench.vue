@@ -367,8 +367,10 @@ defineExpose({ toggleWatch, locate })
             <article v-for="item in ready?.metrics" :key="item.sourceId" class="metric-card">
               <span>{{ item.kind === 'inline' ? '内嵌原文' : '外部原文' }} · {{ item.transport }}</span><strong>{{ size(item.rawUtf8Bytes) }}</strong>
               <span>已采集原文 UTF-8 · {{ item.complete ? '完整取得' : '读取不完整' }} · {{ item.parseStatus }}</span>
-              <details>
-                <summary>来源度量</summary><p class="break-text">
+              <details class="disclosure-section">
+                <summary class="disclosure-summary">
+                  <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>来源度量</span>
+                </summary><p class="break-text">
                   {{ item.url }}
                 </p><p>消息预算 {{ size(item.messageBytes) }} · 已读下界 {{ size(item.readBytesLowerBound) }}</p><p class="break-text">
                   SHA-256 {{ item.digest || '未知' }}
@@ -400,8 +402,10 @@ defineExpose({ toggleWatch, locate })
                 </ExpandTransition>
               </li>
             </ol>
-            <details class="distribution">
-              <summary>内容分布 · {{ analysis.distribution.sharedEdges }} 条共享引用边</summary><p class="feature-caption">
+            <details class="distribution disclosure-section">
+              <summary class="disclosure-summary">
+                <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>内容分布 · {{ analysis.distribution.sharedEdges }} 条共享引用边</span>
+              </summary><p class="feature-caption">
                 共享引用已节省重复序列化成本，不直接等同于应删除的数据。
               </p><h3>长字符串</h3><div v-for="item in analysis.distribution.strings" :key="item.nodeId" class="distribution-item">
                 <button class="distribution-row" :aria-expanded="detailLocation === `strings-${item.nodeId}`" :aria-controls="detailLocation === `strings-${item.nodeId}` ? `analysis-detail-strings-${item.nodeId}` : undefined" @click="toggleInlineDetail(`strings-${item.nodeId}`, item.fieldPath)">
@@ -557,8 +561,10 @@ defineExpose({ toggleWatch, locate })
           <p v-if="!watches.length" class="empty-section">
             在字段、排名或查询结果中点击“关注”，也可以输入精确路径。
           </p>
-          <details v-if="otherWatches.length">
-            <summary>页面范围不匹配 · {{ otherWatches.length }} 项</summary><div v-for="rule in otherWatches" :key="rule.id" class="favorite-row">
+          <details v-if="otherWatches.length" class="disclosure-section">
+            <summary class="disclosure-summary">
+              <ChevronRight class="disclosure-chevron" :size="14" aria-hidden="true" /><span>页面范围不匹配 · {{ otherWatches.length }} 项</span>
+            </summary><div v-for="rule in otherWatches" :key="rule.id" class="favorite-row">
               <span>{{ rule.name }} · {{ rule.scope.pathname }} · {{ rule.scope.app }}</span><button class="btn btn-xs btn-ghost" @click="removeRule(rule.id)">
                 删除
               </button>

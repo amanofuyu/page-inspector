@@ -404,12 +404,6 @@ summary {
 .inspector-shell .refresh-button {
   min-width: 96px;
 }
-.refresh-error {
-  margin-top: 8px;
-  font-size: var(--font-size-xs);
-  color: var(--color-error);
-  overflow-wrap: anywhere;
-}
 .capture-status {
   display: inline-flex;
   align-items: center;
@@ -596,10 +590,6 @@ summary {
   gap: 8px;
   margin: 0 12px 12px;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--color-warning) 28%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--color-warning) 7%, var(--control-surface));
-  box-shadow: inset 0 1px 0 var(--glass-glint);
 }
 .view-limit-icon {
   margin-top: 3px;
@@ -767,13 +757,6 @@ summary {
   gap: 6px;
   margin: 6px 4px 4px;
   padding: 6px 8px;
-  border-left: 2px solid color-mix(in srgb, var(--color-warning) 45%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--color-warning) 5%, transparent);
-  color: var(--inspector-muted);
-  font-size: var(--font-size-xs);
-  line-height: 1.8;
-  overflow-wrap: anywhere;
 }
 .tree-limit-hint svg {
   flex-shrink: 0;
@@ -822,33 +805,133 @@ summary {
   padding: 36px 16px;
   text-align: center;
 }
+/* 页面内提示共用卡片表面，语义色只用于边框、浅底与装饰图标。 */
 .notice,
-.diagnostics {
-  margin: 0 12px 12px;
+.diagnostics,
+.refresh-error,
+.query-error,
+.view-limit-notice,
+.tree-limit-hint {
+  --notice-accent: var(--color-info);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--notice-accent) 24%, var(--inspector-line));
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, var(--glass-glint), transparent 70%),
+    color-mix(in srgb, var(--notice-accent) 5%, var(--glass-surface));
+  box-shadow: inset 0 1px 0 var(--glass-glint);
+  color: var(--color-base-content);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.notice,
+.diagnostics,
+.refresh-error,
+.query-error {
+  --notice-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v6m0-10h.01'/%3E%3C/svg%3E");
+  position: relative;
+  margin: 10px 0;
+  padding: 10px 12px;
+  padding-inline-start: 38px;
 }
 .notice-warning,
-.diagnostics {
-  border-left-color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+.diagnostics,
+.view-limit-notice,
+.tree-limit-hint {
+  --notice-accent: var(--color-warning);
+  --notice-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10.3 3.9-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0M12 9v4m0 4h.01'/%3E%3C/svg%3E");
+}
+.notice-error,
+.notice[role='alert'],
+.refresh-error,
+.query-error {
+  --notice-accent: var(--color-error);
+  --notice-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v6m0 4h.01'/%3E%3C/svg%3E");
+}
+.notice::before,
+.diagnostics::before,
+.refresh-error::before,
+.query-error::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 13px;
+  width: 16px;
+  height: 16px;
+  background-color: var(--notice-accent);
+  mask: var(--notice-icon) center / contain no-repeat;
+  pointer-events: none;
+}
+.inspector-main > .notice {
+  margin: 0;
 }
 .diagnostics {
-  margin-bottom: 14px;
+  margin: 0 12px 14px;
 }
-.source-details {
+.diagnostics > p + p {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--notice-accent) 16%, transparent);
+}
+.notice .btn {
+  max-width: 100%;
+  margin-block: 4px;
+  white-space: normal;
+  vertical-align: middle;
+}
+.disclosure-section {
+  min-width: 0;
   padding: 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  background: var(--glass-surface);
   font-size: var(--font-size-xs);
   line-height: 1.8;
   color: var(--inspector-muted);
   overflow-wrap: anywhere;
 }
-.source-details summary {
-  width: fit-content;
+/* 折叠卡片共用整行标题、留白和反馈，保持各处的点击与展开体验一致。 */
+.inspector-shell .disclosure-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin: -6px;
+  padding: 6px;
+  border-radius: 8px;
   font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--color-base-content);
+  user-select: none;
+  outline-offset: -2px;
 }
-.source-details[open] summary {
-  margin-bottom: 14px;
+.disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure-summary > .disclosure-chevron {
+  flex-shrink: 0;
+  color: var(--inspector-muted);
+}
+.disclosure-summary > span {
+  min-width: 0;
+}
+.inspector-shell .disclosure-section[open] > summary {
+  margin-bottom: 8px;
+}
+.disclosure-section[open] > summary > .disclosure-chevron {
+  transform: rotate(90deg);
+}
+.inspector-shell .disclosure-section > summary:active {
+  background-color: var(--tab-active);
+}
+.disclosure-section > p {
+  margin-block: 8px;
+}
+.feature-primary > .disclosure-section,
+.network-detail > .disclosure-section {
+  margin-top: 12px;
 }
 .source-item {
   margin-block: 12px;
@@ -1159,10 +1242,6 @@ summary {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--color-primary), var(--color-warning));
 }
-.distribution {
-  margin-top: 12px;
-  font-size: var(--font-size-xs);
-}
 .distribution h3 {
   font-weight: 600;
   margin-top: 12px;
@@ -1227,16 +1306,6 @@ summary {
 }
 .query-path-button > span {
   min-width: 0;
-}
-.query-error {
-  padding: 10px 12px;
-  margin-block: 8px;
-  border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--color-error) 8%, transparent);
-  color: var(--color-error);
-  overflow-wrap: anywhere;
-  font-size: var(--font-size-xs);
 }
 .watch-editor {
   display: grid;
@@ -1443,9 +1512,15 @@ summary {
   .inspector-shell :is(.workspace-tabs button, .view-tabs button):hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--inspector-emphasis) 8%, var(--control-surface));
   }
-  .inspector-shell :is(.ranking-row, .distribution-row, .path-button, .request-row, summary):hover:not(:disabled) {
+  .inspector-shell
+    :is(.ranking-row, .distribution-row, .path-button, .request-row, summary:not(.disclosure-summary)):hover:not(
+      :disabled
+    ) {
     background-color: color-mix(in srgb, var(--inspector-emphasis) 6%, transparent);
     box-shadow: inset 2px 0 0 color-mix(in srgb, var(--inspector-emphasis) 45%, transparent);
+  }
+  .inspector-shell .disclosure-section > summary:hover:not(:active) {
+    background-color: color-mix(in srgb, var(--inspector-emphasis) 7%, transparent);
   }
   .inspector-shell :is(.select, .input, .search-input):hover:not(:disabled) {
     border-color: color-mix(in srgb, var(--inspector-emphasis) 40%, var(--inspector-line));
@@ -1504,6 +1579,8 @@ summary {
   /* 保留原生 details 的键盘与语义，同时平滑展开来源、分布和响应比较。 */
   @supports selector(details::details-content) {
     .inspector-shell details::details-content {
+      /* clip 不会建立独立排版上下文；收拢子元素外边距，避免隐藏正文时突然掉高。 */
+      display: flow-root;
       interpolate-size: allow-keywords;
       block-size: 0;
       overflow: clip;
@@ -1520,7 +1597,7 @@ summary {
   }
 }
 
-.inspector-shell .source-details summary {
+.inspector-shell .disclosure-section > summary {
   transition:
     color var(--motion-fast) ease-out,
     background-color var(--motion-feedback) ease-out,
@@ -1529,4 +1606,223 @@ summary {
 }
 .capture-status {
   white-space: nowrap;
+}
+
+/* 操作提示固定在视口右下角，不占文档高度，也不阻挡提示之外的操作。 */
+.toast-region {
+  position: fixed;
+  z-index: 100;
+  inset-inline-end: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(380px, calc(100% - 24px));
+  pointer-events: none;
+}
+.inspector-toast {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 28px;
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  background: var(--glass-solid);
+  color: var(--color-base-content);
+  box-shadow:
+    0 8px 28px rgb(0 0 0 / 18%),
+    inset 0 1px 0 var(--glass-glint);
+  pointer-events: auto;
+}
+.toast-icon {
+  margin-top: 4px;
+  color: var(--inspector-emphasis);
+}
+.toast-message {
+  min-width: 0;
+  max-height: min(30vh, 240px);
+  overflow: auto;
+  padding-block: 2px;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inspector-shell .toast-close {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+.toast-enter-active,
+.toast-leave-active {
+  transition:
+    opacity var(--motion-feedback) ease-out,
+    transform var(--motion-feedback) var(--motion-ease);
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.toast-leave-active {
+  pointer-events: none;
+}
+
+/* SEO 的长标签与原文使用独立布局，窄侧栏按上下两行对照。 */
+.workspace-tabs {
+  flex-wrap: wrap;
+}
+.workspace-tabs button {
+  flex-basis: 36px;
+  min-width: 36px;
+}
+.seo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-block: 10px;
+}
+.seo-source {
+  margin-block: 12px;
+}
+.seo-summary {
+  font-size: var(--font-size-xs);
+  margin-block: 12px;
+  color: var(--inspector-muted);
+}
+.seo-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.seo-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-inline: 0;
+  margin-bottom: 12px;
+}
+.seo-tabs button {
+  min-width: 0;
+  padding-inline: 6px;
+}
+.seo-filters .search-input {
+  flex: 1 1 100%;
+}
+.seo-filters .select {
+  min-width: 0;
+  flex: 1 1 120px;
+}
+.seo-export {
+  justify-content: flex-end;
+}
+.seo-row {
+  border-top: 1px solid var(--inspector-line);
+  padding-block: 6px;
+  font-size: var(--font-size-xs);
+}
+.seo-row-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px;
+  border-radius: 8px;
+  text-align: left;
+  user-select: none;
+}
+.seo-row-toggle > svg {
+  flex: none;
+}
+.seo-row-toggle > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  flex: 1;
+}
+.seo-badge {
+  flex: none;
+  font-size: var(--font-size-xs);
+  color: var(--inspector-muted);
+}
+.seo-row[data-change='added'] .seo-badge,
+.seo-row[data-change='changed'] .seo-badge,
+.seo-row[data-change='removed'] .seo-badge {
+  color: var(--inspector-emphasis);
+}
+.seo-values {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+}
+.seo-values > div {
+  min-width: 0;
+  padding: 8px;
+  background: var(--glass-surface);
+  border-radius: 6px;
+}
+.seo-values small {
+  color: var(--inspector-muted);
+}
+.seo-values p {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.seo-json-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.6;
+}
+.seo-field-detail {
+  padding: 12px;
+  margin: 6px;
+  border: 1px solid var(--inspector-line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.seo-field-detail > div {
+  margin-block: 12px;
+}
+.seo-field-detail pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--inspector-code);
+  border-radius: 6px;
+  padding: 8px;
+  user-select: text;
+}
+.seo-issue {
+  margin-block: 10px;
+  padding: 12px;
+  border: 1px solid var(--inspector-line);
+  border-radius: 8px;
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+.seo-issue p {
+  margin-block: 8px;
+  line-height: 1.8;
+}
+.seo-issue[data-level='problem'] {
+  border-inline-start: 3px solid var(--color-error);
+}
+.seo-issue[data-level='review'] {
+  border-inline-start: 3px solid var(--color-warning);
+}
+.seo-row-toggle {
+  transition: background-color var(--motion-feedback) ease-out;
+}
+.seo-row-toggle:active {
+  background: var(--tab-active);
+}
+@media (hover: hover) and (pointer: fine) {
+  .seo-row-toggle:hover:not(:active) {
+    background: color-mix(in srgb, var(--inspector-emphasis) 7%, transparent);
+  }
+}
+@media (min-width: 700px) {
+  .seo-values:not(.seo-single) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

@@ -17,8 +17,10 @@ declare module 'vue' {
     InspectorFieldDetailPanel: typeof import('./features/inspector/FieldDetailPanel.vue')['default']
     InspectorInspectorView: typeof import('./features/inspector/InspectorView.vue')['default']
     InspectorRawViewer: typeof import('./features/inspector/RawViewer.vue')['default']
+    InspectorToastNotice: typeof import('./features/inspector/ToastNotice.vue')['default']
     InspectorWatchButton: typeof import('./features/inspector/WatchButton.vue')['default']
     NetworkNetworkView: typeof import('./features/network/NetworkView.vue')['default']
+    SeoSeoView: typeof import('./features/seo/SeoView.vue')['default']
     ThemeController: typeof import('./components/theme-controller.vue')['default']
   }
 }

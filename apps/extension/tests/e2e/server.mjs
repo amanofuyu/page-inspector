@@ -12,6 +12,17 @@ function script(text, attrs = 'id="__NUXT_DATA__" data-ssr="true"') {
 createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost')
   const path = url.pathname
+  if (path === '/seo' || path === '/seo-next') {
+    response.writeHead(200, { 'content-type': 'text/html;charset=utf-8', 'x-robots-tag': 'googlebot: noarchive', 'link': '</seo>; rel="canonical"' })
+    response.end(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>SEO 服务端标题</title><meta name="description" content="服务端描述"><meta name="robots" content="noindex"><link rel="canonical" href="/seo"><link rel="alternate" hreflang="en" href="/en/seo"><meta property="og:image" content="/one.png"><meta property="og:image" content="/two.png"></head><body><h1>SEO 示例页面</h1><h2>二级标题</h2><h3>三级标题</h3><h4>四级标题</h4><h5>五级标题</h5><h6>六级标题</h6><script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"SEO 示例"}</script><script>
+      document.title = 'SEO 客户端标题';
+      document.querySelector('[name="description"]').content = '客户端描述';
+      document.querySelector('[name="robots"]').remove();
+      const meta = document.createElement('meta'); meta.name = 'twitter:card'; meta.content = 'summary'; document.head.append(meta);
+      window.nextRoute = () => { history.pushState({}, '', '/seo-next'); document.title = 'SEO 第二路由'; };
+      </script><button onclick="nextRoute()">SEO 切换路由</button></body></html>`)
+    return
+  }
   if (path === '/stats') {
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify(stats))
