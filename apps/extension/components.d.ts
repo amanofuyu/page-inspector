@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AnalysisAnalysisView: typeof import('./features/analysis/AnalysisView.vue')['default']
     InspectorComponentsInlineFieldDetail: typeof import('./features/inspector/components/InlineFieldDetail.vue')['default']
+    InspectorComponentsInspectorAmbience: typeof import('./features/inspector/components/InspectorAmbience.vue')['default']
     InspectorComponentsInspectorFooter: typeof import('./features/inspector/components/InspectorFooter.vue')['default']
     InspectorComponentsInspectorHeader: typeof import('./features/inspector/components/InspectorHeader.vue')['default']
     InspectorDataTreeNode: typeof import('./features/inspector/DataTreeNode.vue')['default']

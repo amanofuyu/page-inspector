@@ -16,6 +16,7 @@ import NetworkView from '../network/NetworkView.vue'
 import { useNetworkSession } from '../network/useNetworkSession'
 import SeoView from '../seo/SeoView.vue'
 import { useSeoActions } from '../seo/useSeoActions'
+import InspectorAmbience from './components/InspectorAmbience.vue'
 import InspectorFooter from './components/InspectorFooter.vue'
 import InspectorHeader from './components/InspectorHeader.vue'
 import DataView from './DataView.vue'
@@ -98,6 +99,7 @@ watch([result, view, resetRevision], dismissNotice)
 </script>
 
 <template>
+  <InspectorAmbience />
   <UiTabs v-model="activeFeature" :items="workspaces">
     <div class="inspector-shell focus-layout" :class="{ 'devtools-shell': devtools }">
       <InspectorHeader :page-title="pageTitle" :current-url="currentUrl" :context-open="contextOpen" :refreshing="refreshing" @context="contextOpen = true" @refresh="refreshCurrent" />
