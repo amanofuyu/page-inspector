@@ -63,18 +63,18 @@ describe('数据区和网络区的派生视图', () => {
     expect(state.selected.application.value?.id).toBe('a')
   })
 
-  it('网络修订更新关联等级；记录移除后清理选中 ID，筛选不修改会话', () => {
+  it('网络修订更新请求元信息；记录移除后清理选中 ID，筛选不修改会话', () => {
     const scope = effectScope()
     scopes.push(scope)
     const record: NetworkRecord = { id: 'r1', url: 'https://example.com/api', method: 'GET', status: 200, generation: 1, documentId: 'd1', startedAt: 1, durationMs: 1, resourceType: 'fetch', mime: 'application/json', contentSize: 10, bodySize: 10, pageRef: null, pageStartedAt: null, redirectUrl: null, cache: false, imported: false, ambiguous: false, metadataBytes: 10, bodyState: 'unread' }
-    const session = { records: [record], body: () => undefined, observedAt: 1, preserve: false, metadataBytes: 10, bodyBytes: 0, dropped: 0 }
+    const session = { records: [record], body: () => undefined, observedAt: 1, metadataBytes: 10, bodyBytes: 0, dropped: 0 }
     const input = shallowReactive<NetworkViewInput>({ session, revision: 0 })
     const view = scope.run(() => useNetworkViewState(input))!
     view.choose(record.id)
-    expect(view.selected.value?.association.level).toBe('无法关联')
-    record.manualCandidate = true
+    expect(view.selected.value?.status).toBe(200)
+    record.status = 404
     input.revision++
-    expect(view.selected.value?.association.level).toBe('业务候选')
+    expect(view.selected.value?.status).toBe(404)
     view.filter.value = 'missing'
     expect(view.rows.value).toEqual([])
     expect(session.records).toHaveLength(1)

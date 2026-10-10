@@ -111,7 +111,7 @@ for (const [width, height, delta] of [[900, 780, -100], [560, 780, 80], [320, 48
     await clickText(panel, '原文', '.view-tabs')
     await clickText(panel, '数据', '.view-tabs')
     await expect.poll(() => ratio(panel)).toBeCloseTo(saved, 1)
-    await clickText(panel, '分析', '.workspace-tabs')
+    await clickText(panel, 'SEO', '.workspace-tabs')
     await clickText(panel, '数据', '.workspace-tabs')
     await expect.poll(() => ratio(panel)).toBeCloseTo(saved, 1)
 

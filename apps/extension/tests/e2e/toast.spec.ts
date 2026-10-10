@@ -1,10 +1,10 @@
 import { Buffer } from 'node:buffer'
 import { writeFile } from 'node:fs/promises'
-import { clickText, expect, fillField, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 const copySample = '#data-field-detail [aria-label="复制带类型的数据"]'
 
-test('实际操作按成功、失败、警告和信息切换图标及明暗主题配色', async ({ extension }, testInfo) => {
+test('实际操作按成功和警告切换图标及明暗主题配色', async ({ extension }, testInfo) => {
   const { panel, website } = extension
   const appearances = {
     success: { icon: 'lucide-circle-check', label: '成功：', light: 'rgb(21, 128, 61)', dark: 'rgb(34, 197, 95)' },
@@ -37,17 +37,6 @@ test('实际操作按成功、失败、警告和信息切换图标及明暗主�
 
   await panel.click('#data-field-detail [aria-label="复制当前属性"]')
   await verify('success')
-  await clickText(panel, '关注', '.workspace-tabs')
-  await fillField(panel, '[aria-label="关注路径"]', 'data.sample.title')
-  await clickText(panel, '添加关注')
-  await expect.poll(() => panel.text()).toContain('已关注字段；')
-  await panel.click('.toast-close')
-  await clickText(panel, '添加关注')
-  await verify('info')
-  await fillField(panel, '[aria-label="关注路径"]', '[')
-  await clickText(panel, '添加关注')
-  await verify('error')
-  await clickText(panel, '数据', '.workspace-tabs')
   await website.goto('http://127.0.0.1:4318/large')
   await expect.poll(() => panel.text()).toContain('已限制为 10,000')
   await expect.poll(() => panel.evaluate(() => document.querySelector('#data-field-detail')?.getAttribute('aria-busy'))).toBe('false')

@@ -1,5 +1,7 @@
 # Payload 分析、检索关注与 DevTools 请求关联方案
 
+> 历史方案／实现记录：分析、检索、关注及 SEO 比较功能已移除。当前功能与验证范围以 [轻量化实现](lightweight-implementation.md) 为准。
+
 日期：2026-09-28。状态：首版功能已实现，完整 E2E 待本轮授权。以下保留设计与验收约定；具体交付、预算、性能和未验证边界见 [实现记录](analysis-search-devtools-implementation.md)。
 
 ## 1. 目标与产品边界

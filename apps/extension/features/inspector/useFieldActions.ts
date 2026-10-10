@@ -3,7 +3,7 @@ import type { ToastInput } from '@/composables/useToast'
 import { useArtifactActions } from '@/composables/useArtifactActions'
 import { copyNodeValue } from '../nuxt/copy'
 import { exportNode } from '../nuxt/format'
-import { formatPath } from '../query/path'
+import { formatPath } from '../nuxt/path'
 
 export type FieldCopyMode = 'value' | 'key' | 'typed' | 'path'
 

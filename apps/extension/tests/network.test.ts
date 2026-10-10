@@ -1,8 +1,8 @@
-import type { HarRequest, NetworkApi, NetworkRecord } from '../features/network/session'
+import type { HarRequest, NetworkApi } from '../features/network/session'
 import type { CollectedApp, PageSnapshot } from '../features/nuxt/types'
 import { Buffer } from 'node:buffer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { associate, NETWORK_LIMITS, NetworkSession, responseSnapshot } from '../features/network/session'
+import { NETWORK_LIMITS, NetworkSession, responseSnapshot } from '../features/network/session'
 
 function event<T>() {
   const listeners = new Set<(value: T) => void>()
@@ -36,6 +36,38 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('devTools 网络会话', () => {
+  it('手动清空取消正文读取，迟到正文不能重新进入缓存', async () => {
+    const { source, session } = start()
+    let complete!: (content: string, encoding: string) => void
+    source.onRequestFinished.fire(request({ getContent: (callback) => {
+      complete = callback
+    } }))
+    const reading = session.read(session.records[0]!.id)
+    session.clear()
+    complete('旧正文', '')
+    await expect(reading).rejects.toThrow('忽略迟到')
+    expect(session.records).toEqual([])
+    expect(session.bodyBytes).toBe(0)
+  })
+  it('清空期间迟到的 HAR 及后续同步不能恢复已清除的历史记录', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(14000)
+    const source = api()
+    let complete!: Parameters<NetworkApi['getHAR']>[0]
+    source.getHAR.mockImplementation((callback) => {
+      complete = callback
+    })
+    const session = new NetworkSession()
+    sessions.push(session)
+    session.start(source)
+    session.clear()
+    complete({ entries: [request()], pages: [] })
+    expect(session.records).toEqual([])
+    source.onRequestFinished.fire(request({ pageref: '未知页面', startedDateTime: new Date(15000).toISOString() }))
+    await vi.advanceTimersByTimeAsync(300)
+    complete({ entries: [request()], pages: [] })
+    expect(session.records).toHaveLength(1)
+  })
   it('默认不读取正文，同 URL 的不同请求分别保留，元信息不保存凭据', () => {
     const { source, session } = start()
     const getContent = vi.fn()
@@ -135,19 +167,18 @@ describe('devTools 网络会话', () => {
     source.onRequestFinished.fire(request({ pageref: undefined, startedDateTime: new Date(1).toISOString() }))
     expect(session.records[0]).toMatchObject({ generation: null, documentId: null, pageStartedAt: null })
   })
-  it('保留导航记录时迟到旧响应保留旧归属，旧快照不能绑定新文档', () => {
+  it('导航后清除旧记录，迟到旧响应和旧快照不能绑定新文档', () => {
     const { source, session } = start()
-    session.preserve = true
+    source.onRequestFinished.fire(request())
     source.onNavigated.fire('https://example.com/new')
     session.setDocument('document1', 10000)
     session.setDocument('document2', 20000)
     source.onRequestFinished.fire(request())
-    expect(session.records[0]).toMatchObject({ generation: 0, documentId: 'document1' })
+    expect(session.records).toHaveLength(0)
   })
-  it('保留记录仍按页面分代，500 条和元信息总预算都会释放旧记录', async () => {
+  it('导航后仍按页面分代，500 条和元信息总预算都会释放旧记录', async () => {
     vi.useFakeTimers()
     const { source, session } = start()
-    session.preserve = true
     source.onRequestFinished.fire(request())
     const startedAt = Date.now()
     source.getHAR.mockImplementation(callback => callback({ entries: [], pages: [{ id: 'page-2', startedDateTime: new Date(startedAt).toISOString() }] }))
@@ -157,10 +188,10 @@ describe('devTools 网络会话', () => {
     for (let i = 0; i < 505; i++)
       source.onRequestFinished.fire(request({ pageref: 'page-2', startedDateTime: new Date(Date.now() + i).toISOString() }))
     expect(session.records.length).toBe(500)
-    expect(session.dropped).toBe(6)
+    expect(session.dropped).toBe(5)
     expect(session.records.at(-1)!.generation).toBe(1)
     for (let i = 0; i < 80; i++)
-      source.onRequestFinished.fire(request({ request: { url: `https://example.com/${'x'.repeat(32000)}?id=${i}` }, startedDateTime: new Date(Date.now() + i).toISOString() }))
+      source.onRequestFinished.fire(request({ pageref: 'page-2', request: { url: `https://example.com/${'x'.repeat(32000)}?id=${i}` }, startedDateTime: new Date(Date.now() + i).toISOString() }))
     expect(session.metadataBytes).toBeLessThanOrEqual(NETWORK_LIMITS.metadataBytes)
     expect(session.records.length).toBeLessThan(500)
   })
@@ -175,21 +206,8 @@ describe('来源关联使用独立构造的证据', () => {
     const snapshot: PageSnapshot = { pageUrl: 'https://example.com/page', initialUrl: 'https://example.com/page', title: '', collectedAt: 13000, navigationStartedAt: 10000, apps: [app], warnings: [] }
     return { record, app, snapshot, body: { text, bytes: 22, encoding: 'text' } }
   }
-  it('只有完整 URL、文档／导航和全文都一致才确认为内容已核对', () => {
+  it('响应快照独立保存，不覆盖原采集', () => {
     const { record, app, snapshot, body } = fixture()
-    expect(associate(record, body, snapshot, app, 'document1').level).toBe('内容已核对')
-    expect(associate(record, undefined, snapshot, app, 'document1').level).toBe('来源候选')
-    expect(associate(record, { ...body, text: 'different' }, snapshot, app, 'document1').level).toBe('来源候选')
-    expect(associate(record, body, snapshot, app, null).level).toBe('来源候选')
-    expect(associate(record, body, snapshot, app, 'other-document').level).toBe('来源候选')
-    expect(associate({ ...record, pageStartedAt: 1 }, body, snapshot, app, 'document1').level).toBe('来源候选')
-    expect(associate({ ...record, url: record.url.replace('?q=1', '?q=2') }, body, snapshot, app, 'document1').level).toBe('无法关联')
-    expect(associate({ ...record, redirectUrl: '/redirect' }, body, snapshot, app, 'document1').level).toBe('来源候选')
-  })
-  it('相似 JSON 不推断来源，业务标记明确为人工候选；响应快照不覆盖原采集', () => {
-    const { record, app, snapshot, body } = fixture()
-    const business: NetworkRecord = { ...record, url: 'https://example.com/api/products', manualCandidate: true }
-    expect(associate(business, body, snapshot, app, 'document1').level).toBe('业务候选')
     const response = responseSnapshot(record, body, snapshot)
     expect(response.app.sources[0]!.transport).toBe('devtools-response')
     expect(response.snapshot.initialUrl).toBeNull()

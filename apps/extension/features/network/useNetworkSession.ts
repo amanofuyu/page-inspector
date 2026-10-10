@@ -6,7 +6,7 @@ import { useArtifactActions } from '@/composables/useArtifactActions'
 import { parseApp } from '../nuxt/parse'
 import { NetworkSession, responseSnapshot } from './session'
 
-export type NetworkViewData = Readonly<Pick<NetworkSession, 'records' | 'body' | 'observedAt' | 'preserve' | 'metadataBytes' | 'bodyBytes' | 'dropped'>>
+export type NetworkViewData = Readonly<Pick<NetworkSession, 'records' | 'body' | 'observedAt' | 'metadataBytes' | 'bodyBytes' | 'dropped'>>
 
 /** 网络会话由工作区容器持有，多个视图共享同一来源，不通过组件实例取数据。 */
 export function useNetworkSession(options: {
@@ -36,19 +36,6 @@ export function useNetworkSession(options: {
     session.start(chrome.devtools.network as unknown as NetworkApi)
   })
   onBeforeUnmount(() => session?.dispose())
-  function toggleCandidate(id: string) {
-    const record = session?.records.find(record => record.id === id)
-    if (!record)
-      return
-    record.manualCandidate = !record.manualCandidate
-    revision.value++
-  }
-  function setPreserve(value: boolean) {
-    if (session) {
-      session.preserve = value
-      revision.value++
-    }
-  }
   async function read(id: string) {
     try {
       await session?.read(id)
@@ -83,5 +70,5 @@ export function useNetworkSession(options: {
     if (session)
       chrome.devtools.inspectedWindow.reload()
   }
-  return { session, revision, startupError, toggleCandidate, setPreserve, read, inspect, copyUrl, clear, reload }
+  return { session, revision, startupError, read, inspect, copyUrl, clear, reload }
 }

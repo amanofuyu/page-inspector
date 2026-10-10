@@ -1,4 +1,4 @@
-import type { CollectedApp, PageSnapshot, RawSource } from '../nuxt/types'
+import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 
 export const NETWORK_LIMITS = { records: 500, metadataBytes: 2 * 1024 * 1024, bodyBytes: 12 * 1024 * 1024 }
 export interface HarRequest {
@@ -46,7 +46,6 @@ export interface NetworkRecord {
   bodyState: 'unread' | 'loading' | 'ready' | 'unavailable' | 'evicted'
   bodyError?: string
   bodyUtf8Bytes?: number
-  manualCandidate?: boolean
 }
 export interface ResponseBody {
   text: string
@@ -85,7 +84,6 @@ export class NetworkSession {
   readonly sessionId = crypto.randomUUID()
   readonly observedAt = Date.now()
   records: NetworkRecord[] = []
-  preserve = false
   generation = 0
   dropped = 0
   metadataBytes = 0
@@ -110,12 +108,14 @@ export class NetworkSession {
   private cancelReads() {
     for (const read of this.reads.values()) {
       clearTimeout(read.timer)
-      read.reject(new Error('页面已导航或会话已结束，忽略迟到正文。'))
+      read.reject(new Error('记录已清空、页面已导航或会话已结束，忽略迟到正文。'))
     }
     this.reads.clear()
   }
 
   private harPending = false
+  private historyRevision = 0
+  private historySince: number | null = null
   private harTimer: ReturnType<typeof setTimeout> | undefined
   constructor(private changed: () => void = () => {
   }) {
@@ -129,11 +129,7 @@ export class NetworkSession {
 
   private onNavigated = (_url: string) => {
     this.generation++
-    this.cancelReads()
-    if (!this.preserve) {
-      this.clear()
-      this.seen = new WeakSet()
-    }
+    this.clear(true)
     this.scheduleHar()
     this.changed()
   }
@@ -163,7 +159,7 @@ export class NetworkSession {
     for (const record of [...this.records]) {
       this.identifyDocument(record)
       // 未知归属仍保留；只有已核实属于旧文档的请求才按导航清理规则释放。
-      if (!this.preserve && record.generation !== null && record.generation !== this.generation) {
+      if (record.generation !== null && record.generation !== this.generation) {
         this.evict(record.id)
       }
       else {
@@ -198,6 +194,7 @@ export class NetworkSession {
       return
     this.harPending = true
     const generation = this.generation
+    const historyRevision = this.historyRevision
     this.api.getHAR((har) => {
       this.harPending = false
       if (!this.active)
@@ -206,6 +203,8 @@ export class NetworkSession {
         this.scheduleHar()
         return
       }
+      if (historyRevision !== this.historyRevision)
+        return
       for (const page of har.pages ?? []) {
         const date = time(page.startedDateTime)
         if (date !== null)
@@ -219,6 +218,10 @@ export class NetworkSession {
         existing.set(key, (existing.get(key) ?? 0) + 1)
       }
       for (const request of har.entries ?? []) {
+        // 手动清空后，后续 HAR 同步不能恢复已清除的历史记录。
+        const startedAt = time(request.startedDateTime)
+        if (this.historySince !== null && (startedAt === null || startedAt <= this.historySince))
+          continue
         const key = fingerprint(request)
         const count = existing.get(key) ?? 0
         if (count > 0)
@@ -277,7 +280,7 @@ export class NetworkSession {
       bodyState: 'unread',
     }
     this.identifyDocument(record)
-    if (!this.preserve && record.generation !== null && record.generation !== this.generation)
+    if (record.generation !== null && record.generation !== this.generation)
       return
     record.metadataBytes = new TextEncoder().encode(JSON.stringify(record)).byteLength
     while (this.records.length && (this.records.length >= NETWORK_LIMITS.records || this.metadataBytes + record.metadataBytes > NETWORK_LIMITS.metadataBytes))
@@ -398,7 +401,11 @@ export class NetworkSession {
     }
   }
 
-  clear() {
+  clear(navigated = false) {
+    this.cancelReads()
+    this.historyRevision++
+    this.historySince = navigated ? null : Date.now()
+    this.seen = new WeakSet()
     this.cancelReads()
     this.records = []
     this.handles.clear()
@@ -418,32 +425,11 @@ export class NetworkSession {
     this.documents.clear()
   }
 }
-export interface Association {
-  level: '内容已核对' | '来源候选' | '业务候选' | '无法关联'
-  reason: string
-  source?: RawSource
-}
-export function associate(record: NetworkRecord, body: ResponseBody | undefined, snapshot: PageSnapshot | null | undefined, app: CollectedApp | undefined, documentId: string | null | undefined): Association {
-  const source = app?.sources.find(source => source.kind === 'external' && source.url === record.url)
-  if (!source)
-    return record.manualCandidate ? { level: '业务候选', reason: '用户手动标记，不证明 payload 字段由该请求产生。' } : { level: '无法关联', reason: '未匹配声明的完整外部 URL；SSR 服务端请求不在浏览器观察范围。' }
-  if (!body || source.text === null)
-    return { level: '来源候选', reason: '完整 URL 一致，正文尚未取得或不可读。', source }
-  if (body.text !== source.text)
-    return { level: '来源候选', reason: '完整 URL 一致，但浏览器响应与扩展取得的原文不同。', source }
-  const navigation = snapshot?.navigationStartedAt
-  const sameDocument = !!documentId && record.documentId === documentId && navigation !== undefined && record.pageStartedAt !== null && Math.abs(record.pageStartedAt - navigation) <= 1 && record.startedAt !== null && record.startedAt >= navigation - 100 && record.startedAt <= snapshot!.collectedAt && !record.ambiguous
-  if (!sameDocument)
-    return { level: '来源候选', reason: '正文一致，但 HAR 页面或当前文档归属未核实。', source }
-  if (record.redirectUrl || record.status === null || record.status < 200 || record.status >= 300)
-    return { level: '来源候选', reason: '正文一致，但重定向、缓存状态或响应状态需要额外核对。', source }
-  return { level: '内容已核对', reason: '声明的完整 URL、HAR 导航时间、当前文档身份与响应原文均已核对；不代表业务 API 到字段的映射。', source }
-}
 export function responseSnapshot(record: NetworkRecord, body: ResponseBody, current: PageSnapshot | null | undefined): {
   snapshot: PageSnapshot
   app: CollectedApp
 } {
   const snapshotId = `network:${record.id}`
   const app: CollectedApp = { id: snapshotId, label: '浏览器响应快照', declaredId: null, serverRendered: null, externalUrl: record.url, sources: [{ kind: 'external', url: record.url, text: body.text, bytes: body.bytes, rawUtf8Bytes: body.bytes, messageBytes: new TextEncoder().encode(JSON.stringify(body.text)).byteLength, fetchedAt: Date.now(), complete: true, transport: 'devtools-response', snapshotId, sourceId: `${snapshotId}:source` }] }
-  return { app, snapshot: { snapshotId, pageUrl: current?.pageUrl ?? record.url, initialUrl: null, title: '浏览器响应快照', collectedAt: Date.now(), apps: [app], warnings: ['显式选择的浏览器响应，独立于 DOM／扩展重新获取来源；不自动绑定字段关注。'] } }
+  return { app, snapshot: { snapshotId, pageUrl: current?.pageUrl ?? record.url, initialUrl: null, title: '浏览器响应快照', collectedAt: Date.now(), apps: [app], warnings: ['显式选择的浏览器响应，独立于 DOM／扩展重新获取来源。'] } }
 }

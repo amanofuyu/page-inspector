@@ -1,5 +1,7 @@
 import type { SeoField, SeoGroup, SeoNode, SeoRaw, SeoSnapshot } from './model'
 import { headerCanonicals } from './link-header'
+import { readMicrodata } from './microdata'
+import { buildPageData } from './page-data'
 
 function escape(value: string) {
   return value
@@ -8,32 +10,7 @@ function escape(value: string) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
 }
-function stableJson(value: unknown, depth = 0): unknown {
-  if (depth > 100)
-    throw new Error('JSON-LD 嵌套超过结构比较预算')
-  if (Array.isArray(value))
-    return value.map(item => stableJson(item, depth + 1))
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item]) => [key, stableJson(item, depth + 1)]),
-    )
-  }
-  return value
-}
 export function normalizeSeo(raw: SeoRaw): SeoField[] {
-  let base = raw.url
-  const firstBase = raw.nodes.find(
-    node => node.tag === 'base' && node.attrs.href !== undefined,
-  )
-  try {
-    if (firstBase)
-      base = new URL(firstBase.attrs.href!, raw.url).href
-  }
-  catch {
-    /* 原值保留在字段中，无效 base 不影响其他标签读取。 */
-  }
   const counts = new Map<string, number>()
   const fields: SeoField[] = []
   for (const node of raw.nodes) {
@@ -42,7 +19,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
     let label = ''
     let value = text
     let group: SeoGroup = 'basic'
-    let isUrl = false
     if (tag === 'html') {
       key = 'html:lang'
       label = 'html lang'
@@ -56,7 +32,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
       key = 'base'
       label = 'base URL'
       value = attrs.href ?? ''
-      isUrl = true
     }
     else if (tag === 'meta') {
       const name = (
@@ -76,10 +51,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
         group = 'indexing'
       else if (/^(?:og:|twitter:)/.test(name))
         group = 'social'
-      isUrl
-        = /^(?:og:(?:url|image(?::url|:secure_url)?|video(?::url|:secure_url)?|audio(?::url|:secure_url)?)|twitter:(?:image|player))$/.test(
-          name,
-        )
     }
     else if (tag === 'link') {
       const rel = (attrs.rel ?? '').toLowerCase().split(/\s+/)
@@ -97,9 +68,8 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
         continue
       }
       value = attrs.href ?? ''
-      isUrl = true
     }
-    else if (tag === 'h1') {
+    else if (/^h[1-6]$/.test(tag)) {
       key = `heading:${tag}`
       label = tag.toUpperCase()
       group = 'headings'
@@ -118,15 +88,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
     else {
       continue
     }
-    let normalized = value.trim().replace(/\s+/g, ' ')
-    if (isUrl && value.trim()) {
-      try {
-        normalized = new URL(value.trim(), tag === 'base' ? raw.url : base).href
-      }
-      catch {
-        /* 无效 URL 留给规则层解释，不丢弃原值。 */
-      }
-    }
     const index = (counts.get(key) ?? 0) + 1
     counts.set(key, index)
     const field: SeoField = {
@@ -135,7 +96,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
       label,
       group,
       value,
-      normalized,
       location: node.location,
       snippet: snippet(node),
       truncated: !!node.truncated,
@@ -143,7 +103,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
     if (group === 'structured' && !node.truncated) {
       try {
         const parsed = JSON.parse(text)
-        field.normalized = JSON.stringify(stableJson(parsed))
         const roots = Array.isArray(parsed) ? parsed : [parsed]
         const types = new Set<string>()
         for (const root of roots) {
@@ -184,7 +143,6 @@ export function normalizeSeo(raw: SeoRaw): SeoField[] {
           label: 'Link canonical',
           group: 'transport',
           value: canonical.target,
-          normalized: canonical.target,
           location: 'header',
           snippet: canonical.snippet,
           truncated: false,
@@ -216,6 +174,12 @@ export function buildSeoSnapshot(
   >,
 ): SeoSnapshot {
   const fields = normalizeSeo(raw)
+  const page = buildPageData(raw)
+  const microdata = readMicrodata(raw.microdata ?? [], page.baseUrl)
+  for (const { index, value } of microdata.items) {
+    const text = JSON.stringify(value, null, 2)
+    fields.push({ id: `microdata:${index}`, key: 'microdata', label: `Microdata${value?.type.length ? ` · ${value.type.join(' / ')}` : ''}`, group: 'structured', value: text, location: raw.microdata![index]!.location, snippet: text, truncated: microdata.truncated })
+  }
   const complete = raw.complete && !fields.some(field => field.truncated)
   return {
     ...info,
@@ -225,7 +189,8 @@ export function buildSeoSnapshot(
     reasons:
       complete || raw.reasons.length
         ? raw.reasons
-        : ['部分字段超过读取或结构比较预算。'],
+        : ['部分字段超过读取预算。'],
     fields,
+    page,
   }
 }

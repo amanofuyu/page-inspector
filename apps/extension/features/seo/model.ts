@@ -8,6 +8,8 @@ export const SEO_LIMITS = {
   value: 16384,
   json: 1024 * 1024,
   scanMs: 250,
+  microdata: 2000,
+  bodyText: 1024 * 1024,
 }
 export type SeoGroup
   = | 'basic'
@@ -17,7 +19,7 @@ export type SeoGroup
     | 'structured'
     | 'headings'
     | 'transport'
-export type SeoSource = 'live-dom' | 'navigation-response' | 'refetch-reference'
+export type SeoSource = 'live-dom' | 'navigation-response' | 'reference-response'
 export interface SeoIdentity {
   tabId: number
   documentId: string
@@ -41,6 +43,35 @@ export interface SeoRaw {
   complete: boolean
   reasons: string[]
   frames: number
+  wordCount?: number
+  microdata?: SeoMicrodataNode[]
+}
+export interface SeoMicrodataNode extends SeoNode { parent: number | null }
+export interface SeoLink {
+  id: string
+  href: string | null
+  url: string
+  text: string
+  title: string
+  rel: string[]
+  kind: 'internal' | 'external' | 'other'
+  truncated: boolean
+}
+export interface SeoImage {
+  id: string
+  src: string | null
+  url: string
+  alt: string | null
+  title: string
+  width: string
+  height: string
+  truncated: boolean
+}
+export interface SeoPageData {
+  baseUrl: string
+  wordCount: number | null
+  links: SeoLink[]
+  images: SeoImage[]
 }
 export interface SeoField {
   id: string
@@ -48,7 +79,6 @@ export interface SeoField {
   label: string
   group: SeoGroup
   value: string
-  normalized: string
   location: SeoNode['location']
   snippet: string
   truncated: boolean
@@ -63,7 +93,6 @@ export interface SeoHeader {
 export interface SeoSnapshot {
   identity: SeoIdentity
   source: SeoSource
-  association: 'matched' | 'reference'
   url: string
   sampledAt: number
   complete: boolean
@@ -72,41 +101,17 @@ export interface SeoSnapshot {
   status?: number
   headers?: SeoHeader[]
   requestId?: string
+  page?: SeoPageData
 }
 export interface SeoHtmlInput {
   text: string
   url: string
   source: Exclude<SeoSource, 'live-dom'>
-  association: SeoSnapshot['association']
   identity: SeoIdentity
   sampledAt: number
   status: number
   headers: SeoHeader[]
   requestId?: string
-}
-export type SeoChange
-  = | 'initial'
-    | 'added'
-    | 'changed'
-    | 'removed'
-    | 'unknown'
-    | 'reference'
-    | 'transport'
-export interface SeoRow {
-  id: string
-  key: string
-  label: string
-  group: SeoGroup
-  html?: SeoField
-  dom?: SeoField
-  change: SeoChange
-}
-export interface SeoIssue {
-  id: string
-  level: 'problem' | 'review' | 'info'
-  title: string
-  detail: string
-  key: string
 }
 export const GROUPS: Record<SeoGroup, string> = {
   basic: '基础标签',
@@ -114,17 +119,8 @@ export const GROUPS: Record<SeoGroup, string> = {
   social: '社交分享',
   languages: '多语言',
   structured: '结构化数据',
-  headings: '正文标题（H1）',
+  headings: '正文标题（H1–H6）',
   transport: 'HTTP 响应',
-}
-export const CHANGES: Record<SeoChange, string> = {
-  initial: '初始已有',
-  added: '运行后新增',
-  changed: '运行后修改',
-  removed: '运行后删除',
-  unknown: '来源未确认',
-  reference: '参考对比',
-  transport: '响应信息',
 }
 export function sameSeoIdentity(a: SeoIdentity, b: SeoIdentity) {
   return (

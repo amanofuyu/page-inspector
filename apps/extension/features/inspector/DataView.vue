@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { FieldPath } from '../inspection/model'
+import type { FieldDetail } from '../nuxt/detail'
 import type { DataNode, DataTree } from '../nuxt/format'
 import type { CollectedApp, ParsedApp, RawSource } from '../nuxt/types'
-import type { FieldDetailData } from './useFieldDetails'
 import type { UiSplitPaneSize } from '@/components/ui/split-pane'
 import type { ToastInput } from '@/composables/useToast'
 import { Download, PanelRight } from '@lucide/vue'
@@ -30,15 +29,13 @@ defineProps<{
   search: string
   found: { matches: DataNode[], limited: boolean }
   selectionContext: string
-  dataDetail: FieldDetailData
-  watchedPaths: ReadonlySet<string>
-  pendingWatchPaths: ReadonlySet<string>
+  dataDetail: FieldDetail | null
+  sourceLabels: string[]
 }>()
 const emit = defineEmits<{
   export: []
   select: [node: DataNode]
   notice: [notice: ToastInput]
-  watch: [path: FieldPath]
 }>()
 const view = defineModel<string>('view', { required: true })
 const query = defineModel<string>('query', { required: true })
@@ -111,7 +108,7 @@ const splitSize = defineModel<UiSplitPaneSize>('splitSize', { required: true })
               </div>
             </section>
             <template #secondary>
-              <FieldDetailPanel id="data-field-detail" v-bind="dataDetail" :node="focusedNode" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" @close="detailVisible = false" @notice="emit('notice', $event)" @watch="emit('watch', $event)" />
+              <FieldDetailPanel id="data-field-detail" :detail="dataDetail" :node="focusedNode" :source-labels="sourceLabels" @close="detailVisible = false" @notice="emit('notice', $event)" />
             </template>
           </UiSplitPane>
         </div>

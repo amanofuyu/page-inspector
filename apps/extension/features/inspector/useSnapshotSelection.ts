@@ -3,9 +3,10 @@ import type { responseSnapshot } from '../network/session'
 import type { CrawlResponse } from '../nuxt/types'
 import { computed, ref, shallowRef, watch } from 'vue'
 
+export type ResponseSnapshot = ReturnType<typeof responseSnapshot>
+
 /** 页面快照与显式选择的网络响应是两种业务来源，只有这里决定当前数据源。 */
-export function useSnapshotSelection(result: Ref<CrawlResponse | null>, pageStatus: Ref<'loading' | 'ready' | 'empty' | 'error'>) {
-  const responseOverride = shallowRef<ReturnType<typeof responseSnapshot> | null>(null)
+export function useSnapshotSelection(result: Ref<CrawlResponse | null>, pageStatus: Ref<'loading' | 'ready' | 'empty' | 'error'>, responseOverride = shallowRef<ResponseSnapshot | null>(null)) {
   const appIndex = ref(0)
   const resetRevision = ref(0)
   const snapshot = computed(() => responseOverride.value?.snapshot ?? result.value?.snapshot)

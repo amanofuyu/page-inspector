@@ -78,31 +78,3 @@ test('实际 payload 来源与原文导出', async ({ extension }, testInfo) => 
   if (profile !== 'ssr')
     expect((await website.request.get(`${base}missing/_payload.json`)).status()).toBe(404)
 })
-
-test('真实 payload 的分析、独立索引、关注与成功刷新比较', async ({ extension }, testInfo) => {
-  const { clickText, fillField } = await import('../e2e/fixtures')
-  const { website, panel } = extension
-  const { base, profile, major } = testInfo.project.metadata
-  await website.goto(`${base}features`)
-  await expect(website.locator('main')).toHaveAttribute('data-hydrated', 'true')
-  await expect(website.locator('[data-testid="feature-marker"]')).toContainText(`nuxt${major}-features`)
-  await expect.poll(() => panel.text()).toContain('feature-lab')
-  await clickText(panel, '分析', '.workspace-tabs')
-  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.ranking-row').length)).toBeGreaterThan(0)
-  await clickText(panel, '检索', '.workspace-tabs')
-  await fillField(panel, '[aria-label="条件 1 内容"]', 'feature-lab.many.field11999')
-  await clickText(panel, '执行查询')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.query-result-status')?.textContent)).toContain('1 条匹配')
-  await clickText(panel, '关注', '.workspace-tabs')
-  await fillField(panel, '[aria-label="关注路径"]', 'data.feature-lab.watched.price')
-  await clickText(panel, '添加关注')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.watch-status')?.textContent)).toBe('首次出现')
-  await website.reload()
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.watch-status')?.textContent)).toBe('未变化')
-  if (profile === 'ssr') {
-    await website.goto(`${base}features?version=2`)
-    await expect.poll(() => panel.evaluate(() => document.querySelector('.watch-status')?.textContent)).toBe('类型变化')
-    await website.goto(`${base}features?version=3`)
-    await expect.poll(() => panel.evaluate(() => document.querySelector('.watch-status')?.textContent)).toBe('缺失')
-  }
-})

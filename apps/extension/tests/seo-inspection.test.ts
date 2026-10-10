@@ -1,12 +1,16 @@
+import type { NetworkSession } from '../features/network/session'
 import type { SeoRaw } from '../features/seo/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRenderer, defineComponent, h, nextTick, ref } from 'vue'
 import { useSeoInspection } from '../composables/useSeoInspection'
+import { parseSeoHtml } from '../features/seo/parse-html'
 
-const { sendMessage } = vi.hoisted(() => ({
-  sendMessage: vi.fn(async () => null),
-}))
-vi.mock('../libs/messaging', () => ({ sendMessage }))
+const { readNavigationHtml, navigationCandidate, parseHtmlWorker } = vi.hoisted(() => ({ readNavigationHtml: vi.fn(), navigationCandidate: vi.fn(), parseHtmlWorker: vi.fn() }))
+vi.mock('../features/seo/sources', () => ({ readNavigationHtml, navigationCandidate }))
+vi.mock('../features/seo/html-worker', () => ({ parseHtmlWorker }))
+
+let network: NetworkSession | undefined
+
 const renderer = createRenderer<object, object>({
   patchProp() {},
   insert() {},
@@ -57,6 +61,10 @@ beforeEach(async () => {
   target.value = 1
   active.value = true
   identity = { url: 'https://example.com/one', start: 10000 }
+  network = {} as NetworkSession
+  navigationCandidate.mockReset()
+  readNavigationHtml.mockImplementation(async (_network, identity) => ({ text: '<title>HTML 原始标题</title>', identity, url: identity.url, source: 'navigation-response', sampledAt: 1, status: 200, headers: [] }))
+  parseHtmlWorker.mockImplementation(async input => parseSeoHtml(input))
   vi.stubGlobal('browser', {
     tabs: {
       get: vi.fn(async () => ({ url: identity.url })),
@@ -82,7 +90,7 @@ beforeEach(async () => {
         state = useSeoInspection({
           tabId: () => target.value,
           active: () => active.value,
-          network: () => undefined,
+          network: () => network,
         })
         return () => h('div')
       },
@@ -97,6 +105,35 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('sEO 独立采集生命周期', () => {
+  it('dOM 自动采样不读取或解析网络正文，HTML 只在显式请求后取得', async () => {
+    resolve()
+    await finish()
+    expect(readNavigationHtml).not.toHaveBeenCalled()
+    expect(parseHtmlWorker).not.toHaveBeenCalled()
+    const reading = state.refresh('html')
+    await vi.advanceTimersByTimeAsync(0)
+    resolve(1)
+    await reading
+    expect(state.html.value?.fields.find(field => field.key === 'title')?.value).toBe('HTML 原始标题')
+    expect(readNavigationHtml).toHaveBeenCalledTimes(1)
+  })
+  it('取消 HTML 解析后迟到结果不能恢复旧内容，也不留下截止计时器', async () => {
+    resolve()
+    await finish()
+    let complete!: (value: unknown) => void
+    parseHtmlWorker.mockImplementationOnce(() => new Promise((resolve) => {
+      complete = resolve
+    }))
+    const reading = state.refresh('html')
+    await vi.advanceTimersByTimeAsync(0)
+    resolve(1)
+    await vi.advanceTimersByTimeAsync(0)
+    state.cancel()
+    complete({ source: 'navigation-response' })
+    await reading
+    expect(state.html.value).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('无需 Nuxt payload 即可采集，成功刷新前保留原有快照', async () => {
     resolve()
     await finish()
@@ -110,6 +147,16 @@ describe('sEO 独立采集生命周期', () => {
     await refreshing
     expect(state.status.value).toBe('error')
     expect(state.dom.value).toBe(previous)
+  })
+  it('当前 DOM 可使用唯一关联的已观察响应头，但不会因此读取正文', async () => {
+    navigationCandidate.mockReturnValue({ id: '文档请求', status: 200 })
+    network = { records: [], seoHeaders: () => [{ name: 'x-robots-tag', value: 'noindex' }] } as unknown as NetworkSession
+    resolve()
+    await finish()
+    expect(state.dom.value?.fields.find(field => field.key === 'http:x-robots-tag')?.value).toBe('noindex')
+    expect(state.dom.value?.requestId).toBe('文档请求')
+    expect(readNavigationHtml).not.toHaveBeenCalled()
+    expect(parseHtmlWorker).not.toHaveBeenCalled()
   })
   it('快速切换标签页，迟到结果不能覆盖当前页', async () => {
     target.value = 2
@@ -151,21 +198,6 @@ describe('sEO 独立采集生命周期', () => {
     await finish()
     expect(state.dom.value).toBeNull()
   })
-  it('刷新捕获等待加载也有超时，取消后清理等待状态', async () => {
-    resolve()
-    await finish()
-    await state.reloadAndCapture()
-    for (const listener of listeners) listener(1, { status: 'loading' })
-    expect(state.status.value).toBe('loading')
-    await vi.advanceTimersByTimeAsync(20001)
-    expect(state.status.value).toBe('error')
-    expect(state.error.value).toContain('等待页面加载超时')
-    await state.reloadAndCapture()
-    state.cancel()
-    await vi.advanceTimersByTimeAsync(20001)
-    expect(state.status.value).toBe('idle')
-    expect(state.error.value).toBe('')
-  })
   it('卸载释放监听并拒绝迟到采集', async () => {
     app.unmount()
     expect(listeners.size).toBe(0)
@@ -174,27 +206,5 @@ describe('sEO 独立采集生命周期', () => {
     await finish()
     expect(state.dom.value).toBeNull()
     expect(vi.getTimerCount()).toBe(0)
-  })
-  it('旧标签页的迟到刷新错误不能覆盖新标签页', async () => {
-    resolve()
-    await finish()
-    let failReload!: (error: Error) => void
-    vi.mocked(browser.tabs.reload).mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          failReload = reject
-        }),
-    )
-    const loading = state.reloadAndCapture()
-    target.value = 2
-    await nextTick()
-    await vi.advanceTimersByTimeAsync(0)
-    resolve(1)
-    await finish()
-    failReload(new Error('旧页面刷新失败'))
-    await loading
-    expect(state.dom.value?.identity.tabId).toBe(2)
-    expect(state.status.value).toBe('ready')
-    expect(state.error.value).toBe('')
   })
 })

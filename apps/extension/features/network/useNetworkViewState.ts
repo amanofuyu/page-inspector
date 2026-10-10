@@ -1,27 +1,19 @@
-import type { CollectedApp, PageSnapshot } from '../nuxt/types'
 import type { NetworkViewData } from './useNetworkSession'
 import { computed, ref, watch } from 'vue'
-import { associate } from './session'
 
-export interface NetworkViewInput {
-  session: NetworkViewData
-  revision: number
-  snapshot?: PageSnapshot | null
-  app?: CollectedApp
-  documentId?: string | null
-}
+export interface NetworkViewInput { session: NetworkViewData, revision: number }
 
-/** 修订号驱动派生视图，组件只保存筛选条件、选中 ID 和预览上限。 */
+/** 元信息只做筛选；正文仅在选中请求时读取缓存。 */
 export function useNetworkViewState(input: NetworkViewInput) {
   const selectedId = ref('')
   const filter = ref('')
   const previewLimit = ref(8000)
   const records = computed(() => {
     void input.revision
-    return input.session.records.map(record => ({ record, association: associate(record, input.session.body(record.id), input.snapshot, input.app, input.documentId) }))
+    return [...input.session.records]
   })
-  const rows = computed(() => records.value.filter(({ record }) => record.url.toLowerCase().includes(filter.value.toLowerCase())).slice().reverse())
-  const selected = computed(() => records.value.find(({ record }) => record.id === selectedId.value))
+  const rows = computed(() => records.value.filter(record => record.url.toLowerCase().includes(filter.value.toLowerCase())).slice().reverse())
+  const selected = computed(() => records.value.find(record => record.id === selectedId.value))
   const body = computed(() => {
     void input.revision
     return selected.value ? input.session.body(selectedId.value) : undefined
@@ -34,7 +26,7 @@ export function useNetworkViewState(input: NetworkViewInput) {
     previewLimit.value = 8000
   }, { flush: 'sync' })
   function choose(id: string) {
-    if (records.value.some(({ record }) => record.id === id))
+    if (records.value.some(record => record.id === id))
       selectedId.value = id
   }
   return { selectedId, filter, previewLimit, rows, selected, body, choose }

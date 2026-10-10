@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { clickText, expect, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 const base = 'http://127.0.0.1:4318'
 
@@ -115,13 +115,6 @@ test('字段选择与展开独立，键盘操作、复制和宽窄布局可用',
   })).toBe(true)
   const narrow = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
   await writeFile(testInfo.outputPath('focus-layout-narrow.png'), Buffer.from(narrow.data, 'base64'))
-  await clickText(panel, '检索', '.workspace-tabs')
-  expect(await panel.evaluate(() => document.querySelector('.field-detail'))).toBeNull()
-  await clickText(panel, '数据', '.workspace-tabs')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('#data-field-detail')?.textContent)).toContain('字段来源：')
-  expect(await panel.evaluate(() => document.querySelector('.detail-field-name')?.textContent?.trim())).toBe('sample')
-  await panel.click('[aria-label="页面与数据来源"]')
-  expect(await panel.evaluate(() => document.querySelector('#page-context')!.matches(':modal'))).toBe(true)
 })
 
 test('外部 payload、原文高亮与原文导出', async ({ extension }) => {
@@ -198,14 +191,14 @@ test('大数据限制不隐藏状态分类，窄侧栏可用', async ({ extensio
   await writeFile(testInfo.outputPath('sidepanel-narrow.png'), Buffer.from(screenshot.data, 'base64'))
 })
 
-test('重新读取保留内容、展开状态与搜索，并稳定显示加载反馈', async ({ extension }) => {
+test('重新读取保留内容、展开状态与搜索，并立即响应加载状态', async ({ extension }) => {
   const { panel } = extension
   await panel.click('.data-tree-pane [aria-label="展开 sample"]')
   await expect.poll(() => panel.text()).toContain('Nuxt 3.17.5')
   await panel.evaluate(() => {
     const button = document.querySelector<HTMLButtonElement>('.refresh-button')!
     const tree = document.querySelector('.tree-container > .tree-node')!
-    const workbench = document.querySelector('[aria-label="扩展工作区"]')!
+    const workbench = document.querySelector('[aria-label="数据工作区"]')!
     const initialWidth = button.getBoundingClientRect().width
     const probe = { started: 0, elapsed: 0, preserved: true, stableWidth: true }
     const observer = new MutationObserver(() => {
@@ -228,7 +221,6 @@ test('重新读取保留内容、展开状态与搜索，并稳定显示加载�
   expect(await panel.evaluate(() => document.querySelector<HTMLButtonElement>('.refresh-button')?.disabled)).toBe(true)
   await expect.poll(() => panel.evaluate(() => document.documentElement.dataset.refreshProbe)).toBeTruthy()
   const probe = await panel.evaluate(() => JSON.parse(document.documentElement.dataset.refreshProbe!))
-  expect(probe.elapsed).toBeGreaterThanOrEqual(380)
   expect(probe.preserved).toBe(true)
   expect(probe.stableWidth).toBe(true)
   expect(await panel.evaluate(() => document.querySelector('[aria-label="折叠 sample"]')?.getAttribute('aria-expanded'))).toBe('true')

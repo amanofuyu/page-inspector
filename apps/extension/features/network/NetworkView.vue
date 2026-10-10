@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { NetworkViewInput } from './useNetworkViewState'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
-import UiCheckbox from '@/components/ui/UiCheckbox.vue'
 import UiEmptyState from '@/components/ui/UiEmptyState.vue'
 import UiNotice from '@/components/ui/UiNotice.vue'
 import UiSearchInput from '@/components/ui/UiSearchInput.vue'
@@ -17,8 +16,6 @@ const emit = defineEmits<{
   copy: [text: string]
   clear: []
   reload: []
-  candidate: [id: string]
-  preserve: [value: boolean]
 }>()
 const { selectedId, filter, previewLimit, rows, selected, body, choose } = useNetworkViewState(props)
 </script>
@@ -35,9 +32,7 @@ const { selectedId, filter, previewLimit, rows, selected, body, choose } = useNe
       {{ startupError }}
     </UiNotice>
     <div class="feature-toolbar">
-      <UiCheckbox :model-value="session.preserve" @update:model-value="emit('preserve', $event)">
-        保留导航前记录
-      </UiCheckbox><UiActionButton size="sm" @click="emit('clear')">
+      <UiActionButton size="sm" @click="emit('clear')">
         清空记录
       </UiActionButton><UiActionButton size="sm" @click="emit('reload')">
         刷新被检查页面
@@ -49,15 +44,15 @@ const { selectedId, filter, previewLimit, rows, selected, body, choose } = useNe
     </p>
     <div class="network-columns">
       <div class="network-list">
-        <button v-for="{ record, association } in rows" :key="record.id" class="request-row" :class="{ selected: record.id === selectedId }" @click="choose(record.id)">
-          <span>{{ record.method }} · {{ record.status ?? '?' }} · {{ record.generation === null ? '页面归属未确认' : `页面 ${record.generation + 1}` }} · {{ association.level }}</span><span class="mono break-text">{{ record.url }}</span><small>{{ record.mime || record.resourceType || '类型未知' }} · content.size {{ size(record.contentSize) }} · {{ record.durationMs?.toFixed(0) ?? '?' }} ms</small>
+        <button v-for="record in rows" :key="record.id" class="request-row" :class="{ selected: record.id === selectedId }" @click="choose(record.id)">
+          <span>{{ record.method }} · {{ record.status ?? '?' }} · {{ record.generation === null ? '页面归属未确认' : `页面 ${record.generation + 1}` }}</span><span class="mono break-text">{{ record.url }}</span><small>{{ record.mime || record.resourceType || '类型未知' }} · content.size {{ size(record.contentSize) }} · {{ record.durationMs?.toFixed(0) ?? '?' }} ms</small>
         </button>
         <UiEmptyState v-if="!rows.length">
           当前没有记录。可以刷新页面或在应用中触发客户端请求。
         </UiEmptyState>
       </div>
       <ExpandTransition>
-        <NetworkRequestDetail v-if="selected" :selected="selected.record" :association="selected.association" :body="body" :preview-limit="previewLimit" @copy="emit('copy', $event)" @read="emit('read', $event)" @candidate="emit('candidate', $event)" @inspect="emit('inspect', $event)" @more="previewLimit += 8000" />
+        <NetworkRequestDetail v-if="selected" :selected="selected" :body="body" :preview-limit="previewLimit" @copy="emit('copy', $event)" @read="emit('read', $event)" @inspect="emit('inspect', $event)" @more="previewLimit += 8000" />
       </ExpandTransition>
     </div>
   </section>

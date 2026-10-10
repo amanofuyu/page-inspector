@@ -1,29 +1,22 @@
 <script setup lang="ts">
 import type { ToastInput } from '@/composables/useToast'
-import type { FieldPath } from '@/features/inspection/model'
 import type { DataNode } from '@/features/nuxt/format'
-import { ChevronRight, Copy, Info, Link } from '@lucide/vue'
+import { ChevronRight, Copy, Link } from '@lucide/vue'
 import { ref } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiEmptyState from '@/components/ui/UiEmptyState.vue'
 import UiNotice from '@/components/ui/UiNotice.vue'
-import { formatPath } from '@/features/query/path'
 import ExpandTransition from './ExpandTransition.vue'
 import { useFieldActions } from './useFieldActions'
-import WatchButton from './WatchButton.vue'
 
 const props = defineProps<{
   node: DataNode
   initialOpen?: boolean
-  watchedPaths?: ReadonlySet<string>
-  pendingWatchPaths?: ReadonlySet<string>
   selectable?: boolean
   selectedPath?: string
   hideActions?: boolean
 }>()
 const emit = defineEmits<{
-  watch: [path: FieldPath]
-  locate: [path: FieldPath]
   select: [node: DataNode]
   notice: [notice: ToastInput]
 }>()
@@ -80,14 +73,12 @@ function copy(pathOnly: boolean) {
       <span v-if="!selectable && !hideActions" class="tree-actions">
 
         <UiActionButton icon-only tooltip="复制字段路径" :label="`复制字段路径 ${node.path}`" @click="copy(true)"><Link :size="12" aria-hidden="true" /></UiActionButton>
-        <UiActionButton v-if="node.fieldPath && node.fieldPath.at(-1)?.kind !== 'map-entry'" icon-only :label="`字段详情 ${node.path}`" tooltip="字段详情" @click="emit('locate', node.fieldPath)"><Info :size="12" aria-hidden="true" /></UiActionButton>
-        <WatchButton v-if="node.fieldPath && node.fieldPath.at(-1)?.kind !== 'map-entry'" :path="node.fieldPath" :watched="watchedPaths?.has(formatPath(node.fieldPath)) ?? false" :busy="pendingWatchPaths?.has(formatPath(node.fieldPath))" icon-only @toggle="emit('watch', $event)" />
         <UiActionButton icon-only tooltip="复制带类型的数据" :label="`复制带类型的数据 ${node.path}`" @click="copy(false)"><Copy :size="12" aria-hidden="true" /></UiActionButton>
       </span>
     </div>
     <ExpandTransition>
       <div v-if="expanded && node.children" class="tree-children">
-        <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :watched-paths="watchedPaths" :pending-watch-paths="pendingWatchPaths" :selectable="selectable" :selected-path="selectedPath" :hide-actions="hideActions" @select="emit('select', $event)" @notice="emit('notice', $event)" @watch="emit('watch', $event)" @locate="emit('locate', $event)" />
+        <DataTreeNode v-for="child in node.children.slice(0, limit)" :key="child.path" :node="child" :selectable="selectable" :selected-path="selectedPath" :hide-actions="hideActions" @select="emit('select', $event)" @notice="emit('notice', $event)" />
         <UiActionButton v-if="node.children.length > limit" class="my-1" @click="limit += 100">
           再显示 100 项（剩余 {{ node.children.length - limit }} 项）
         </UiActionButton>

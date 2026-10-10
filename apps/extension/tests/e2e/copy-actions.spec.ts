@@ -1,5 +1,5 @@
 import type { SidePanel } from './fixtures'
-import { clickText, expect, fillField, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 async function selectField(panel: SidePanel, key: string) {
   await panel.search(key)
@@ -61,21 +61,4 @@ test('截断值复制提示原因且不覆盖剪贴板，属性名仍可复制',
   await expect.poll(() => panel.text()).toContain('当前值超出展示上限')
   await website.bringToFront()
   expect(await website.evaluate(() => navigator.clipboard.readText())).toBe('data')
-})
-
-test('检索就地详情同样提供当前值和属性名复制', async ({ extension }) => {
-  const { panel, website } = extension
-  await clickText(panel, '检索', '.workspace-tabs')
-  await fillField(panel, '[aria-label="条件 1 内容"]', 'sample.amount')
-  await clickText(panel, '执行查询')
-  await expect.poll(() => panel.evaluate(() => document.querySelectorAll('.query-result').length)).toBe(1)
-  await panel.click('.query-result .path-button')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.inline-field-detail')?.getAttribute('aria-busy'))).toBe('false')
-  await panel.click('.inline-field-detail [aria-label="复制当前值"]')
-  await website.bringToFront()
-  await expect.poll(() => website.evaluate(() => navigator.clipboard.readText())).toBe('99n')
-  await dismissToast(panel)
-  await panel.click('.inline-field-detail [aria-label="复制当前属性"]')
-  await website.bringToFront()
-  await expect.poll(() => website.evaluate(() => navigator.clipboard.readText())).toBe('amount')
 })

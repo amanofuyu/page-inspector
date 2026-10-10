@@ -1,5 +1,5 @@
-import type { FieldPath } from '../inspection/model'
-import { HOLE } from '../inspection/model'
+import type { FieldPath } from './path'
+import { HOLE } from './path'
 import { PayloadTag } from './types'
 
 export interface DataNode {

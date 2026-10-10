@@ -5,8 +5,6 @@ import { defineComponent, nextTick, ref } from 'vue'
 import UiCheckbox from '../components/ui/UiCheckbox.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiSearchInput from '../components/ui/UiSearchInput.vue'
-import WatchButton from '../features/inspector/WatchButton.vue'
-import WatchView from '../features/watch/WatchView.vue'
 
 const mounted: ReturnType<typeof mount>[] = []
 afterEach(() => {
@@ -88,36 +86,5 @@ describe('统一表单的输入与提交行为', () => {
     await nextTick()
     expect(checked.value).toBe(true)
     expect(wrapper.getComponent(UiCheckbox).emitted('update:modelValue')).toEqual([[true]])
-  })
-
-  it('关注编辑保留草稿更新与重命名提交的区别，不修改父级对象', async () => {
-    const draft = { path: '', name: '', includeQuery: false }
-    const scope = { origin: 'https://example.com', pathname: '/', app: 'nuxt', query: null }
-    const rule = { id: 'watch-1', kind: 'watch' as const, version: 1 as const, name: '价格', createdAt: 1, scope, path: [] }
-    const wrapper = mount(WatchView, { props: { draft, scope, watches: [rule], otherWatches: [], comparisons: [] } })
-    mounted.push(wrapper)
-    const input = wrapper.get<HTMLInputElement>('[aria-label="重命名关注 价格"]')
-    input.element.value = '商品价格'
-    await input.trigger('input')
-    expect(wrapper.emitted('rename')).toBeUndefined()
-    await input.trigger('change')
-    expect(wrapper.emitted('rename')).toEqual([['watch-1', '商品价格']])
-    expect(rule.name).toBe('价格')
-    await wrapper.get('[aria-label="关注别名"]').setValue('新关注')
-    expect(wrapper.emitted('update:draft')).toEqual([[{ ...draft, name: '新关注' }]])
-    expect(draft.name).toBe('')
-  })
-
-  it('关注按钮共用操作反馈并保留选中与忙碌语义', async () => {
-    const wrapper = mount(WatchButton, { props: { path: [], watched: false } })
-    mounted.push(wrapper)
-    await wrapper.get('button').trigger('click')
-    expect(wrapper.emitted('toggle')).toEqual([[[]]])
-    await wrapper.setProps({ watched: true, busy: true })
-    expect(wrapper.get('button').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('button').attributes('aria-busy')).toBe('true')
-    expect(wrapper.text()).toContain('处理中')
-    await wrapper.get('button').trigger('click')
-    expect(wrapper.emitted('toggle')).toHaveLength(1)
   })
 })

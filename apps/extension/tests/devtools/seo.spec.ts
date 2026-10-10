@@ -1,12 +1,10 @@
-import { Buffer } from 'node:buffer'
-import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium, expect, test } from '@playwright/test'
-import { clickText, fillField, SidePanel } from '../e2e/fixtures'
+import { clickText, SidePanel } from '../e2e/fixtures'
 // 探针只连接浏览器创建的真实 DevTools 前端／面板，不创建带模拟 API 的普通扩展页。
-test('SEO 真实文档响应：SSR／CSR 差异、报告和 SPA 基线隔离', async ({
+test('SEO 真实文档响应：分别查看 DOM / HTML，导航后清理旧内容', async ({
   browserName,
-}, testInfo) => {
+}) => {
   expect(browserName).toBe('chromium')
   const extensionPath = path.resolve('.output/chrome-mv3-prod')
   const context = await chromium.launchPersistentContext('', {
@@ -102,143 +100,18 @@ test('SEO 真实文档响应：SSR／CSR 差异、报告和 SPA 基线隔离', a
         ),
       )
       .toContain('SEO 客户端标题')
-    await clickText(panel, '刷新并捕获 HTML')
-    await expect
-      .poll(
-        () =>
-          panel.evaluate(
-            () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
-          ),
-        { timeout: 15000 },
-      )
-      .toContain('已关联本次文档响应')
-    const changes = await panel.evaluate(() =>
-      Object.fromEntries(
-        [...document.querySelectorAll('.seo-row')].map(row => [
-          row.getAttribute('data-key'),
-          row.getAttribute('data-change'),
-        ]),
-      ),
-    )
-    expect(changes).toMatchObject({
-      'title': 'changed',
-      'meta:description': 'changed',
-      'meta:robots': 'removed',
-      'meta:twitter:card': 'added',
-      'link:canonical': 'initial',
-      'http:x-robots-tag': 'transport',
-      'http:canonical': 'transport',
-    })
-    await fillField(panel, '[aria-label="搜索 SEO 字段"]', 'title')
-    await panel.click('[data-key="title"] > .ui-disclosure-trigger')
-    await expect
-      .poll(() =>
-        panel.evaluate(
-          () => document.querySelector('.seo-field-detail')?.textContent,
-        ),
-      )
-      .toContain('SEO 服务端标题')
-    expect(
-      await panel.evaluate(
-        () => document.querySelector('.seo-field-detail')?.textContent,
-      ),
-    ).toContain('SEO 客户端标题')
-    await panel.evaluate(async () => {
-      await Promise.all(
-        document
-          .getAnimations()
-          .map(animation => animation.finished.catch(() => {})),
-      )
-    })
-    const screenshot = await frontend.send<{ data: string }>(
-      'Page.captureScreenshot',
-      { format: 'png' },
-    )
-    await writeFile(
-      testInfo.outputPath('seo-devtools.png'),
-      Buffer.from(screenshot.data, 'base64'),
-    )
-    await clickText(panel, '问题', '.seo-tabs')
-    await expect
-      .poll(() =>
-        panel.evaluate(() => document.querySelector('.seo-card')?.textContent),
-      )
-      .toContain('初始 HTML 的 noindex 在运行后被移除')
-    // 通过浏览器的真实侧栏验证后台缓存共享，不直接调用缓存或替换消息 API。
-    await panel.evaluate(async () => {
-      const windowId = (await chrome.windows.getCurrent()).id!
-      await chrome.sidePanel.open({ windowId })
-    })
-    let sideTarget = ''
-    await expect
-      .poll(async () => {
-        sideTarget
-          = (await cdp.send('Target.getTargets')).targetInfos.find(
-            target =>
-              target.url === `chrome-extension://${extensionId}/sidepanel.html`,
-          )?.targetId ?? ''
-        return sideTarget
-      })
-      .toBeTruthy()
-    const sideSession = await cdp.send('Target.attachToTarget', {
-      targetId: sideTarget,
-      flatten: false,
-    })
-    const side = new SidePanel(cdp, sideSession.sessionId)
-    await side.send('Runtime.enable')
-    await side.send('Page.enable')
-    await expect.poll(() => side.text()).toContain('未检测到 Nuxt 数据')
-    await clickText(side, 'SEO', '.workspace-tabs')
-    await expect
-      .poll(() =>
-        side.evaluate(() =>
-          document
-            .querySelector('[data-key="title"]')
-            ?.getAttribute('data-change'),
-        ),
-      )
-      .toBe('changed')
-    expect(
-      await side.evaluate(
-        () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
-      ),
-    ).toContain('已关联本次文档响应')
-    await website.evaluate(() => {
-      history.pushState({}, '', '/seo-next')
-      document.title = 'SEO 第二路由'
-    })
-    await expect
-      .poll(() =>
-        panel.evaluate(
-          () => document.querySelector('.seo-source > .ui-disclosure-trigger')?.textContent,
-        ),
-      )
-      .toContain('尚未捕获')
-    await clickText(panel, '差异', '.seo-tabs')
-    await expect
-      .poll(() =>
-        panel.evaluate(() =>
-          document
-            .querySelector('[data-key="title"]')
-            ?.getAttribute('data-change'),
-        ),
-      )
-      .toBe('unknown')
-    expect(
-      await panel.evaluate(
-        () => document.querySelector('[data-key="title"]')?.textContent,
-      ),
-    ).toContain('SEO 第二路由')
-    await expect
-      .poll(() =>
-        side.evaluate(() =>
-          document
-            .querySelector('[data-key="title"]')
-            ?.getAttribute('data-change'),
-        ),
-      )
-      .toBe('unknown')
-    expect(side.exceptions).toEqual([])
+    await website.reload()
+    await expect(website).toHaveTitle('SEO 客户端标题')
+    await panel.select('[aria-label="SEO 数据来源"]', 'html')
+    await clickText(panel, '读取 HTML')
+    await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.textContent)).toContain('SEO 服务端标题')
+    expect(await panel.evaluate(() => document.querySelector('[data-change]'))).toBeNull()
+    await panel.select('[aria-label="SEO 数据来源"]', 'dom')
+    await expect.poll(() => panel.evaluate(() => document.querySelector('[data-key="title"]')?.textContent)).toContain('SEO 客户端标题')
+    await website.goto('http://127.0.0.1:4318/empty')
+    await panel.select('[aria-label="SEO 数据来源"]', 'html')
+    await expect.poll(() => panel.text()).toContain('点击读取 HTML')
+    expect(await panel.evaluate(() => document.querySelector('[data-key="title"]'))).toBeNull()
     expect(panel.exceptions).toEqual([])
   }
   finally {

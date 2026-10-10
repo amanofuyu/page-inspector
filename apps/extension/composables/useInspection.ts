@@ -1,11 +1,9 @@
 import type { CrawlResponse } from '@/features/nuxt/types'
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { createRequestGate } from '@/features/inspector/request-gate'
 import { sendMessage } from '@/libs/messaging'
 
-const MIN_LOADING_MS = 400
-
-export function useInspection(target?: { tabId: number }) {
+export function useInspection(target?: { tabId: number }, active: () => boolean = () => true, collectable: () => boolean = () => true) {
   const result = shallowRef<CrawlResponse | null>(null)
   const status = ref<'loading' | 'ready' | 'empty' | 'error'>('loading')
   const message = ref('')
@@ -16,32 +14,17 @@ export function useInspection(target?: { tabId: number }) {
   let windowId: number | undefined
   let requestId: string | null = null
   let scheduled: ReturnType<typeof setTimeout> | undefined
+  let mounted = false
   let disposed = false
-  let finishLoadingWait: (() => void) | undefined
-  async function waitForMinimumLoading(startedAt: number) {
-    const remaining = MIN_LOADING_MS - (performance.now() - startedAt)
-    if (remaining <= 0)
-      return
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(finish, remaining)
-      function finish() {
-        clearTimeout(timer)
-        finishLoadingWait = undefined
-        resolve()
-      }
-      finishLoadingWait = finish
-    })
-  }
   function cancel() {
     gate.invalidate()
     clearTimeout(scheduled)
-    finishLoadingWait?.()
     if (requestId) {
       void sendMessage('cancelCrawl', { clientId, requestId }).catch(() => { })
       requestId = null
     }
   }
-  async function refresh(retry = 0, preserveResult = false, startedAt = performance.now()) {
+  async function refresh(retry = 0, preserveResult = false) {
     cancel()
     const ticket = gate.invalidate()
     status.value = 'loading'
@@ -62,6 +45,8 @@ export function useInspection(target?: { tabId: number }) {
         result.value = null
       if (tab?.id === undefined)
         throw new Error('当前窗口没有可读取的标签页。')
+      if (!active() || !collectable())
+        return
       const id = crypto.randomUUID()
       requestId = id
       const response = await Promise.race([
@@ -75,7 +60,7 @@ export function useInspection(target?: { tabId: number }) {
       requestId = null
       if (response.status === 'stale') {
         if (retry < 1) {
-          scheduled = setTimeout(() => void refresh(retry + 1, preserveResult, startedAt), 300)
+          scheduled = setTimeout(() => void refresh(retry + 1, preserveResult), 300)
           return
         }
         throw new Error(response.message || '页面已变化，请重试。')
@@ -86,11 +71,10 @@ export function useInspection(target?: { tabId: number }) {
         // 页面尚未加载完成时直接等待重试，避免空状态与加载状态交替闪现。
         scheduled = setTimeout(() => {
           if (gate.current(ticket))
-            void refresh(retry + 1, preserveResult, startedAt)
+            void refresh(retry + 1, preserveResult)
         }, 500)
         return
       }
-      await waitForMinimumLoading(startedAt)
       if (!gate.current(ticket) || disposed)
         return
       result.value = response
@@ -103,7 +87,6 @@ export function useInspection(target?: { tabId: number }) {
       if (requestId)
         void sendMessage('cancelCrawl', { clientId, requestId }).catch(() => { })
       requestId = null
-      await waitForMinimumLoading(startedAt)
       if (!gate.current(ticket) || disposed)
         return
       status.value = 'error'
@@ -118,8 +101,7 @@ export function useInspection(target?: { tabId: number }) {
     result.value = null
     status.value = 'loading'
     message.value = ''
-    const startedAt = performance.now()
-    scheduled = setTimeout(() => void refresh(0, false, startedAt), 150)
+    scheduled = setTimeout(() => void refresh(0, false), 150)
   }
   function onActivated(info: {
     tabId: number
@@ -160,7 +142,15 @@ export function useInspection(target?: { tabId: number }) {
       return '页面地址已变化。此处为初始文档快照，不代表当前路由的运行时状态。'
     return ''
   })
+  watch(active, (enabled) => {
+    if (!mounted || disposed)
+      return
+    if (enabled && collectable())
+      void refresh(0, true)
+    else cancel()
+  })
   onMounted(async () => {
+    mounted = true
     browser.tabs.onActivated.addListener(onActivated)
     browser.tabs.onUpdated.addListener(onUpdated)
     browser.tabs.onRemoved.addListener(onRemoved)
