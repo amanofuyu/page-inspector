@@ -16,6 +16,19 @@ function setup(value: unknown) {
 }
 
 describe('数据树与详情的选择同步', () => {
+  it('详情默认收起，再次点击同一字段收起，点击其他字段展开', () => {
+    const state = setup({ first: 1, second: 2 })
+    const [first, second] = state.root.value!.children!
+    expect(state.visible.value).toBe(false)
+    state.select(first!)
+    expect(state.visible.value).toBe(true)
+    state.select(first!)
+    expect(state.visible.value).toBe(false)
+    state.select(second!)
+    expect(state.visible.value).toBe(true)
+    expect(state.selected.value?.key).toBe('second')
+  })
+
   it('同一文档刷新保留路径，同时使用新快照中的值', () => {
     const state = setup({ counter: 1 })
     const previous = state.root.value!.children![0]!
@@ -31,11 +44,12 @@ describe('数据树与详情的选择同步', () => {
     state.select(state.root.value!.children![0]!)
     state.root.value = buildTree({ remaining: true }).root
     expect(state.selected.value).toBe(state.root.value)
+    expect(state.visible.value).toBe(false)
     state.root.value = buildTree({ removed: false }).root
     expect(state.selected.value).toBe(state.root.value)
   })
 
-  it('页面、应用或分类切换清除旧路径，收起详情的偏好继续保留', () => {
+  it('页面、应用或分类切换清除旧路径并收起行内详情', () => {
     const state = setup({ shared: '旧值' })
     state.select(state.root.value!.children![0]!)
     state.visible.value = false

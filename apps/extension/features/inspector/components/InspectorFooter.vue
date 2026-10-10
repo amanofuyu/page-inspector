@@ -19,5 +19,6 @@ function size(bytes: number) {
       </UiActionButton>
     </div>
     <UiTabList label="工作区" variant="workspace" />
+    <slot name="notice" />
   </footer>
 </template>

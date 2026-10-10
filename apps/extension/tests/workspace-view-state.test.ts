@@ -34,13 +34,11 @@ describe('数据区和网络区的派生视图', () => {
     await nextTick()
     state.view.query.value = 'counter'
     state.view.detailVisible.value = false
-    state.view.splitSize.value = { horizontal: 72, vertical: 40 }
     state.result.value = snapshot('文档一', [application('a'), application('b', 2)])
     await nextTick()
     expect(state.selected.application.value?.id).toBe('b')
     expect(state.view.query.value).toBe('counter')
     expect(state.view.detailVisible.value).toBe(false)
-    expect(state.view.splitSize.value).toEqual({ horizontal: 72, vertical: 40 })
     expect(state.view.tree.value?.root.children?.[0]?.value).toBe(2)
     state.status.value = 'error'
     expect(state.selected.status.value).toBe('ready')

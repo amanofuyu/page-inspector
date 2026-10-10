@@ -36,6 +36,7 @@ declare module 'vue' {
     SeoSeoView: typeof import('./features/seo/SeoView.vue')['default']
     ThemeController: typeof import('./components/theme-controller.vue')['default']
     UiUiActionButton: typeof import('./components/ui/UiActionButton.vue')['default']
+    UiUiActionMenu: typeof import('./components/ui/UiActionMenu.vue')['default']
     UiUiCheckbox: typeof import('./components/ui/UiCheckbox.vue')['default']
     UiUiDisclosure: typeof import('./components/ui/UiDisclosure.vue')['default']
     UiUiEmptyState: typeof import('./components/ui/UiEmptyState.vue')['default']

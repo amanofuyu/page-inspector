@@ -183,6 +183,21 @@ export const test = base.extend<InspectorOptions & {
   },
 })
 export { expect } from '@playwright/test'
+/** 从选中行或根行打开复制菜单，验证菜单关闭后焦点回到行内入口。 */
+export async function copyField(panel: SidePanel, mode: 'value' | 'key' | 'path' | 'typed') {
+  await panel.evaluate(() => {
+    for (const element of document.querySelectorAll('[data-test-copy]'))
+      element.removeAttribute('data-test-copy')
+    const trigger = document.querySelector('.tree-row-selected > .tree-actions .ui-menu-trigger')
+      ?? document.querySelector('.tree-container > .tree-node > .tree-row > .tree-actions .ui-menu-trigger')
+    if (!trigger)
+      throw new Error('找不到字段复制菜单')
+    trigger.setAttribute('data-test-copy', '')
+  })
+  await panel.click('[data-test-copy]')
+  await panel.click(`[role="menuitem"][data-value="${mode}"]`)
+  await expect.poll(() => panel.evaluate(() => !!document.activeElement?.matches('[data-test-copy]'))).toBe(true)
+}
 /** 使用真实输入事件设置条件，供侧栏与 DevTools 共用验收。 */
 export async function fillField(panel: SidePanel, selector: string, value: string) {
   await panel.evaluate(({ selector, value }) => {

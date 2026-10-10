@@ -37,7 +37,7 @@
   --radius-box: var(--radius-panel);
   --depth: 0;
   --noise: 0;
-  --inspector-muted: #59534e;
+  --inspector-muted: #48423d;
   --inspector-line: rgb(65 47 34 / 14%);
   --inspector-emphasis: #b91f32;
   /* 提示图标取自 non.fan 的语义色阶；浅色使用 700，深色使用 500。 */
@@ -84,7 +84,7 @@
   --color-error-content: #3f1420;
   --color-neutral: #fafafa;
   --color-neutral-content: #242424;
-  --inspector-muted: #cbc5c0;
+  --inspector-muted: #e0dbd6;
   --inspector-line: rgb(255 245 235 / 14%);
   --inspector-emphasis: #ff9eaa;
   --toast-success: #22c55f;
@@ -654,10 +654,10 @@ summary {
   padding-top: 4px;
   color: var(--inspector-muted);
 }
-.inspector-shell .tree-actions button {
+.inspector-shell .tree-actions .ui-menu-trigger {
   min-height: 28px;
   height: 28px;
-  width: 28px;
+  width: 36px;
   padding: 0;
 }
 .inspector-shell .watch-button.is-watched {
@@ -2146,10 +2146,6 @@ summary {
 .focus-layout .viewer-toolbar .ui-search-input {
   flex: 1 1 132px;
 }
-.focus-layout .detail-toggle[aria-pressed='true'] {
-  color: var(--inspector-emphasis);
-  background: var(--tab-active);
-}
 .data-tree-pane {
   display: flex;
   flex: 1;
@@ -2208,7 +2204,7 @@ summary {
   min-width: 0;
 }
 .tree-row-selectable {
-  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   gap: 0;
   border-radius: var(--radius-item);
 }
@@ -2243,26 +2239,39 @@ summary {
 .tree-expand:focus-visible {
   outline-offset: -2px;
 }
-.focus-layout .data-field-detail {
+.tree-inline-detail {
+  min-width: 0;
+  margin: 4px 0 8px 24px;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--inspector-line);
+  border-radius: var(--radius-panel);
+  background: var(--glass-panel);
+}
+.detail-inline-heading {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.detail-inline-heading .btn {
+  flex: none;
+  min-height: 28px;
+  width: 28px;
+  padding: 0;
+}
+.focus-layout .data-field-detail {
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--glass-panel);
-  overflow: hidden;
-  scrollbar-gutter: auto;
+  background: none;
+  overflow: visible;
 }
 .detail-pane-body {
-  flex: 1;
-  min-height: 0;
-  padding: 12px;
-  overflow: auto;
-  overscroll-behavior: contain;
+  min-width: 0;
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
 }
 .detail-field-name {
   font-size: var(--font-size-sm);
@@ -2270,7 +2279,7 @@ summary {
   overflow-wrap: anywhere;
 }
 .detail-label {
-  margin: 16px 0 4px;
+  margin: 8px 0 4px;
   color: var(--inspector-muted);
   font-size: var(--font-size-xs);
 }
@@ -2281,13 +2290,8 @@ summary {
   font-size: var(--font-size-sm);
   color: var(--inspector-string);
 }
-.detail-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 16px 0 8px;
-}
 .workspace-footer {
+  position: relative;
   flex: none;
   border-top: 1px solid var(--inspector-line);
   background: var(--glass-panel);
@@ -2331,11 +2335,11 @@ summary {
   white-space: nowrap;
 }
 .focus-layout .toast-region {
-  /* 始终相对卡片定位，关闭磨砂时也不会退回视口边缘。 */
+  /* 提示始终位于底栏上方，随底栏实际高度调整，避免窄屏换行后遮住导航。 */
   position: absolute;
-  bottom: calc(104px + env(safe-area-inset-bottom));
+  bottom: calc(100% + 12px);
 }
-/* 分栏方向由 UiSplitPane 的实际容器宽度决定，页头独立适应窄侧栏。 */
+/* 页头根据卡片的实际宽度换行，数据树与行内详情共用同一滚动区域。 */
 @container (width < 600px) {
   .focus-layout .app-header {
     flex-wrap: wrap;

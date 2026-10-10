@@ -178,6 +178,72 @@
 .ui-select-check {
   margin-inline-start: auto;
 }
+.ui-action-menu {
+  display: inline-flex;
+}
+.ui-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--inspector-muted);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) ease-out,
+    background-color var(--motion-fast) ease-out;
+}
+.ui-menu-trigger:hover,
+.ui-menu-trigger[data-state='open'] {
+  color: var(--inspector-emphasis);
+  background: var(--action-hover);
+}
+.ui-menu-trigger:focus-visible {
+  outline-offset: -2px;
+}
+/* 菜单传送到 body 并固定定位，避免被树的滚动区域裁切。 */
+.ui-menu-positioner {
+  z-index: 110;
+}
+.ui-menu-content {
+  min-width: min(168px, var(--available-width));
+  max-width: var(--available-width);
+  max-height: var(--available-height);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--action-border);
+  border-radius: var(--radius-panel);
+  outline: none;
+  background: var(--glass-overlay);
+  backdrop-filter: var(--glass-backdrop);
+  color: var(--color-base-content);
+  box-shadow: var(--glass-shadow);
+  font-size: var(--font-size-xs);
+  transform-origin: var(--transform-origin);
+}
+.ui-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  outline: none;
+}
+.ui-menu-item > svg {
+  flex: none;
+  color: var(--inspector-muted);
+}
+.ui-menu-item[data-highlighted] {
+  background: var(--action-hover);
+}
+.ui-menu-separator {
+  margin: 4px;
+  border-top: 1px solid var(--inspector-line);
+}
 .data-tab-panel {
   display: flex;
   flex-direction: column;

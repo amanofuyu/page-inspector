@@ -17,14 +17,16 @@ async function outerLayout(panel: SidePanel) {
     const main = document.querySelector('.inspector-main')!
     const explorer = document.querySelector('.data-explorer')!.getBoundingClientRect()
     const footer = document.querySelector('.workspace-footer')!.getBoundingClientRect()
+    const shell = document.querySelector('.inspector-shell')!.getBoundingClientRect()
+    const gutter = Number.parseFloat(getComputedStyle(document.querySelector('#app')!).paddingRight)
     return {
       documentTop: document.scrollingElement!.scrollTop,
       mainTop: main.scrollTop,
       documentOverflow: document.documentElement.scrollHeight > innerHeight + 1,
       mainOverflow: main.scrollHeight > main.clientHeight + 1,
       panesFit: explorer.bottom <= footer.top + 1,
-      footerVisible: Math.abs(footer.bottom - innerHeight) < 1,
-      fullWidth: Math.abs(document.querySelector('.inspector-shell')!.getBoundingClientRect().right - innerWidth) < 1,
+      footerVisible: Math.abs(footer.bottom - shell.bottom) <= 1,
+      fullWidth: Math.abs(shell.right + gutter - innerWidth) < 1 && Math.abs(shell.left - gutter) < 1,
     }
   })
 }
@@ -47,76 +49,37 @@ async function moduleScroll(panel: SidePanel, selector: string) {
   expect(await panel.evaluate(() => {
     const main = document.querySelector('.inspector-main')!
     const footer = document.querySelector('.workspace-footer')!.getBoundingClientRect()
+    const shell = document.querySelector('.inspector-shell')!.getBoundingClientRect()
+    const gutter = Number.parseFloat(getComputedStyle(document.querySelector('#app')!).paddingRight)
     return main.scrollTop === 0 && document.scrollingElement!.scrollTop === 0
       && main.scrollHeight <= main.clientHeight + 1
-      && Math.abs(footer.bottom - innerHeight) < 1
-      && Math.abs(document.querySelector('.inspector-shell')!.getBoundingClientRect().right - innerWidth) < 1
+      && Math.abs(footer.bottom - shell.bottom) <= 1
+      && Math.abs(shell.right + gutter - innerWidth) < 1 && Math.abs(shell.left - gutter) < 1
   })).toBe(true)
 }
 
 for (const [width, height] of [[900, 780], [560, 780], [320, 480]]) {
-  test(`数据树与详情独立滚动，外层固定 ${width}×${height}`, async ({ extension }, testInfo) => {
+  test(`数据树与行内详情共用滚动区域，外层固定 ${width}×${height}`, async ({ extension }, testInfo) => {
     const { panel, website } = extension
     await panel.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
     await website.goto('http://127.0.0.1:4318/large')
     await expect.poll(() => panel.text()).toContain('已限制为 10,000')
-    await expect.poll(() => panel.evaluate(() => document.querySelector('#data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
     await expect.poll(() => outerLayout(panel)).toEqual(fixedOuter)
+    expect(await panel.evaluate(() => !document.querySelector('.ui-split-handle'))).toBe(true)
+    await panel.click('.tree-container > .tree-node > .tree-row .tree-select')
+    await expect.poll(() => panel.evaluate(() => !!document.querySelector('.tree-inline-detail'))).toBe(true)
     expect(await panel.evaluate(() => {
-      const tree = document.querySelector('.data-tree-pane')!
-      const detail = document.querySelector('#data-field-detail')!
-      const treeBounds = tree.getBoundingClientRect()
-      const detailBounds = detail.getBoundingClientRect()
-      const treeHeading = tree.querySelector('.detail-pane-heading')!.getBoundingClientRect()
-      const detailHeading = detail.querySelector('.detail-pane-heading')!.getBoundingClientRect()
-      const sideBySide = innerWidth >= 600
-      return Math.abs(treeBounds.height - detailBounds.height) < 1
-        && Math.abs(treeHeading.height - detailHeading.height) < 1
-        && Math.abs(detailBounds.right - innerWidth) < 1
-        && getComputedStyle(detail).scrollbarGutter === 'auto'
-        && (!sideBySide || (Math.abs(treeBounds.top - detailBounds.top) < 1 && Math.abs(treeHeading.bottom - detailHeading.bottom) < 1))
+      const detail = document.querySelector('.tree-inline-detail')!
+      return !!detail.closest('.tree-container') && getComputedStyle(detail).overflowY !== 'auto'
     })).toBe(true)
-    for (const selector of ['.tree-container', '.detail-pane-body']) {
-      expect(await panel.evaluate((selector) => {
-        const element = document.querySelector(selector)!
-        return element.clientHeight > 0 && element.scrollHeight > element.clientHeight
-      }, selector)).toBe(true)
-    }
-
-    await wheel(panel, '.tree-container')
-    await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-container')!.scrollTop)).toBeGreaterThan(0)
-    expect(await panel.evaluate(() => document.querySelector('.detail-pane-body')!.scrollTop)).toBe(0)
-    // 到达底部继续滚动，不能把滚轮事件传给外层。
-    await panel.evaluate(() => {
-      const tree = document.querySelector('.tree-container')!
-      tree.scrollTop = tree.scrollHeight
-    })
-    await wheel(panel, '.tree-container')
-    expect(await outerLayout(panel)).toEqual(fixedOuter)
-    const treeTop = await panel.evaluate(() => document.querySelector('.tree-container')!.scrollTop)
-    await wheel(panel, '.detail-pane-body')
-    await expect.poll(() => panel.evaluate(() => document.querySelector('.detail-pane-body')!.scrollTop)).toBeGreaterThan(0)
-    expect(await panel.evaluate(() => document.querySelector('.tree-container')!.scrollTop)).toBe(treeTop)
-    await panel.evaluate(() => {
-      const detail = document.querySelector('.detail-pane-body')!
-      detail.scrollTop = detail.scrollHeight
-    })
-    await wheel(panel, '.detail-pane-body')
+    await moduleScroll(panel, '.tree-container')
     expect(await outerLayout(panel)).toEqual(fixedOuter)
 
-    // 搜索结果、收起详情和来源弹窗均不影响外层高度。
+    // 搜索结果和来源弹窗共用固定外层，字段详情随搜索结果一起滚动。
     await panel.search('项目')
     await expect.poll(() => panel.evaluate(() => !!document.querySelector('.search-result'))).toBe(true)
-    await wheel(panel, '.search-results')
-    await expect.poll(() => panel.evaluate(() => document.querySelector('.search-results')!.scrollTop)).toBeGreaterThan(0)
+    await moduleScroll(panel, '.search-results')
     expect(await outerLayout(panel)).toEqual(fixedOuter)
-    await panel.click('.detail-toggle')
-    expect(await panel.evaluate(() => {
-      const pane = document.querySelector('.data-tree-pane')!.getBoundingClientRect()
-      const explorer = document.querySelector('.data-explorer')!.getBoundingClientRect()
-      return Math.abs(pane.height - explorer.height) < 1 && !document.querySelector('#data-field-detail')
-    })).toBe(true)
-    await panel.click('.detail-toggle')
     await panel.click('[aria-label="页面与数据来源"]')
     expect(await outerLayout(panel)).toEqual(fixedOuter)
     await wheel(panel, '.context-dialog-body')
@@ -131,9 +94,6 @@ for (const [width, height] of [[900, 780], [560, 780], [320, 480]]) {
     await panel.search('')
     await expect.poll(() => panel.evaluate(() => !!document.querySelector('.tree-container'))).toBe(true)
     expect(await panel.evaluate(() => document.querySelector('.tree-container')!.scrollTop)).toBe(0)
-    await panel.evaluate(() => {
-      document.querySelector('.detail-pane-body')!.scrollTop = 0
-    })
     const screenshot = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
     await writeFile(testInfo.outputPath(`internal-scroll-${width}.png`), Buffer.from(screenshot.data, 'base64'))
     await clickText(panel, '原文', '.view-tabs')

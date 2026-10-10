@@ -9,7 +9,7 @@ for (const [width, height, theme] of [[900, 780, 'light'], [320, 480, 'dark']] a
     await website.goto(`http://127.0.0.1:4318/external?source=${'long-address-'.repeat(12)}`)
     await expect.poll(() => panel.text()).toContain('外部 payload')
     await panel.select('[aria-label="界面主题"]', theme)
-    await expect.poll(() => panel.evaluate(() => document.querySelector('#data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
+    await expect.poll(() => panel.evaluate(() => !!document.querySelector('.tree-container'))).toBe(true)
     await panel.evaluate(async () => {
       await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))
     })

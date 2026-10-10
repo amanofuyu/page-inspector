@@ -2,16 +2,17 @@
 import type { FieldDetail } from '../nuxt/detail'
 import type { DataNode } from '../nuxt/format'
 import type { ToastInput } from '@/composables/useToast'
-import { PanelRightClose } from '@lucide/vue'
+import { X } from '@lucide/vue'
 import { computed } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import { formatPath } from '../nuxt/path'
 import DataTreeNode from './DataTreeNode.vue'
-import FieldCopyActions from './FieldCopyActions.vue'
 
-const props = defineProps<{ node?: DataNode, detail: FieldDetail | null, sourceLabels: string[] }>()
+const props = defineProps<{ node?: DataNode, detail: FieldDetail | null, sourceLabels: string[], resolveNode?: (node: DataNode) => DataNode, active?: boolean }>()
 const emit = defineEmits<{ close: [], notice: [notice: ToastInput] }>()
 const currentNode = computed(() => props.detail?.tree?.root ?? props.node)
+// 普通分支直接复用主树；引用和被截断的分支才展示按字段解析的局部结构。
+const localTree = computed(() => props.node?.reference || props.node?.truncated ? currentNode.value?.children : undefined)
 const fullValue = computed(() => {
   const node = currentNode.value
   return node?.value === undefined ? node?.reference ?? node?.preview : String(node.value)
@@ -19,34 +20,27 @@ const fullValue = computed(() => {
 </script>
 
 <template>
-  <aside class="field-detail data-field-detail" aria-label="字段详情" aria-busy="false">
-    <div class="detail-pane-heading">
-      <h3>字段详情</h3>
+  <div class="field-detail data-field-detail" aria-label="字段详情" aria-busy="false">
+    <div class="detail-inline-heading">
+      <h3 class="detail-field-name">
+        <span class="detail-field-key">{{ node?.key }}</span> <span class="tree-type">{{ currentNode?.type }}</span>
+      </h3>
       <UiActionButton icon-only label="收起字段详情" @click="emit('close')">
-        <PanelRightClose :size="15" aria-hidden="true" />
+        <X :size="14" aria-hidden="true" />
       </UiActionButton>
     </div>
     <div v-if="node" class="detail-pane-body">
-      <h4 class="detail-field-name">
-        {{ node.key }}
-      </h4>
-      <p class="feature-caption">
-        {{ currentNode?.type }}
-      </p>
       <p class="detail-label">
         字段路径
       </p>
       <p class="mono break-text">
         {{ node.fieldPath ? formatPath(node.fieldPath) : node.path }}
       </p>
-      <div class="detail-actions">
-        <FieldCopyActions v-if="currentNode" :node="currentNode" @notice="emit('notice', $event)" />
-      </div>
-      <p class="detail-label">
-        {{ currentNode?.children ? '结构与值' : '完整值' }}
+      <p v-if="!currentNode?.children || localTree" class="detail-label">
+        {{ localTree ? '完整字段结构' : '完整值' }}
       </p>
-      <DataTreeNode v-if="currentNode?.children" :key="currentNode.path" :node="currentNode" initial-open hide-actions />
-      <pre v-else class="detail-value">{{ fullValue }}</pre>
+      <DataTreeNode v-if="localTree && currentNode" :key="currentNode.path" :node="currentNode" initial-open :resolve-node="resolveNode" :active="active" @notice="emit('notice', $event)" />
+      <pre v-else-if="!currentNode?.children" class="detail-value">{{ fullValue }}</pre>
       <p v-if="sourceLabels.length" class="feature-caption">
         {{ detail && detail.sourceIds.length > 1 ? '来源覆盖顺序：' : '字段来源：' }}{{ sourceLabels.join(' → ') }}
       </p>
@@ -57,5 +51,5 @@ const fullValue = computed(() => {
         局部视图达到展示上限；完整已采集内容请导出原文。
       </p>
     </div>
-  </aside>
+  </div>
 </template>

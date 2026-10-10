@@ -43,27 +43,18 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     expect(await panel.evaluate(() => chrome.devtools.inspectedWindow.tabId)).toBe(tabId)
     expect(await panel.evaluate(() => typeof chrome.devtools.network.getHAR)).toBe('function')
     await expect.poll(() => panel.text()).toContain('sample')
-    // 宿主视口不等于嵌入面板宽度，按真实容器验证方向和键盘调节。
-    const splitSizes = { horizontal: 64, vertical: 50 }
+    // 扩展嵌入宿主窗口，宽窄布局都让数据树占满模块，详情保留在字段行内。
+    await panel.click('.data-tree-pane .tree-row:has(> [aria-label="展开 sample"]) .tree-select')
     for (const width of [900, 560]) {
       await frontend.send('Emulation.setDeviceMetricsOverride', { width, height: 780, deviceScaleFactor: 1, mobile: false })
-      await panel.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-      const orientation = await panel.evaluate(() => document.querySelector('.data-explorer')!.clientWidth >= 600 ? 'horizontal' : 'vertical')
-      const initial = splitSizes[orientation]
-      await expect.poll(() => panel.evaluate(() => ({ orientation: document.querySelector('.ui-split-handle')?.getAttribute('data-orientation'), size: Number(document.querySelector('.ui-split-handle')?.getAttribute('aria-valuenow')) }))).toEqual({ orientation, size: initial })
-      await panel.evaluate(() => document.querySelector<HTMLElement>('.ui-split-handle')!.focus())
-      const key = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown'
-      const keyCode = orientation === 'horizontal' ? 39 : 40
-      await panel.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: keyCode })
-      await panel.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: keyCode })
-      await expect.poll(() => panel.evaluate(() => Number(document.querySelector('.ui-split-handle')?.getAttribute('aria-valuenow')))).toBe(initial + 1)
-      splitSizes[orientation] = initial + 1
+      await expect.poll(() => panel.evaluate(() => {
+        const tree = document.querySelector('.data-tree-pane')!.getBoundingClientRect()
+        const detail = document.querySelector('.tree-inline-detail')!.getBoundingClientRect()
+        return !document.querySelector('.ui-split-handle') && detail.left >= tree.left && detail.right <= tree.right
+          && document.documentElement.scrollWidth <= innerWidth
+      })).toBe(true)
     }
     await frontend.send('Emulation.clearDeviceMetricsOverride')
-    await expect.poll(() => panel.evaluate((sizes) => {
-      const orientation = document.querySelector('.data-explorer')!.clientWidth >= 600 ? 'horizontal' : 'vertical'
-      return Number(document.querySelector('.ui-split-handle')?.getAttribute('aria-valuenow')) === sizes[orientation]
-    }, splitSizes)).toBe(true)
     await clickText(panel, '网络', '.workspace-tabs')
     await website.evaluate(async () => {
       await fetch('/_payload.json?proof=1')
@@ -81,13 +72,15 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     expect(await panel.evaluate(() => {
       const network = document.querySelector('.network-card')!
       const main = document.querySelector('.inspector-main')!
+      const shell = document.querySelector('.inspector-shell')!.getBoundingClientRect()
+      const gutter = Number.parseFloat(getComputedStyle(document.querySelector('#app')!).paddingRight)
       network.scrollTop = network.scrollHeight
       main.scrollTop = 100
       document.scrollingElement!.scrollTop = 100
       return network.scrollTop > 0 && main.scrollTop === 0 && document.scrollingElement!.scrollTop === 0
         && main.scrollHeight <= main.clientHeight + 1
-        && Math.abs(document.querySelector('.inspector-shell')!.getBoundingClientRect().right - innerWidth) < 1
-        && Math.abs(document.querySelector('.workspace-footer')!.getBoundingClientRect().bottom - innerHeight) < 1
+        && Math.abs(shell.right + gutter - innerWidth) < 1 && Math.abs(shell.left - gutter) < 1
+        && Math.abs(document.querySelector('.workspace-footer')!.getBoundingClientRect().bottom - shell.bottom) <= 1
     })).toBe(true)
     await frontend.send('Emulation.clearDeviceMetricsOverride')
     await clickText(panel, '作为独立 payload 查看')

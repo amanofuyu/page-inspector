@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { ResponseSnapshot } from './useSnapshotSelection'
+import type { DataNode } from '@/features/nuxt/format'
 import { Braces, Globe, Network, ScanLine } from '@lucide/vue'
 import { computed, ref, shallowRef, watch } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
@@ -39,7 +40,7 @@ const workspaces = computed(() => [
 ])
 const selected = useSnapshotSelection(result, pageStatus, responseOverride)
 const { appIndex, snapshot, application, status, context, resetRevision } = selected
-const { sourceIndex, view, query, splitSize, search, parsed, tree, source, selectedNode, selectionContext, focusedNode, detailVisible, selectNode, found, renderLabel } = usePayloadViewState(application, context, resetRevision)
+const { sourceIndex, view, query, search, parsed, tree, source, selectedNode, selectionContext, focusedNode, detailVisible, selectNode, found, renderLabel } = usePayloadViewState(application, context, resetRevision)
 const artifacts = useArtifactActions(showNotice)
 const seoVisited = ref(false)
 const network = useNetworkSession({ enabled: !!props.devtools, documentId: () => result.value?.documentId, snapshot: () => result.value?.snapshot, notice: showNotice })
@@ -50,6 +51,11 @@ const { dom: seoDom, html: seoHtml, status: seoStatus, error: seoError, sourceNo
   network: () => networkSession,
 })
 const dataDetail = computed(() => activeFeature.value === 'data' && detailVisible.value && parsed.value && focusedNode.value ? fieldDetail(parsed.value, focusedNode.value) : null)
+function resolveCopyNode(node: DataNode) {
+  if (node.path === focusedNode.value?.path && dataDetail.value?.tree)
+    return dataDetail.value.tree.root
+  return parsed.value ? fieldDetail(parsed.value, node)?.tree?.root ?? node : node
+}
 const sourceLabels = computed(() => dataDetail.value?.sourceIds.map((id) => {
   const position = parsed.value?.sources.findIndex(source => source.sourceId === id) ?? -1
   const source = application.value?.sources[position]
@@ -170,12 +176,15 @@ watch([result, view, resetRevision], dismissNotice)
           <NetworkView v-if="networkSession" :session="networkSession" :revision="networkRevision" :startup-error="networkError" :active="activeFeature === 'network'" :tab-id="targetTabId" @inspect="inspectNetwork" @read="network.read" @copy="network.copyUrl" @clear="network.clear" @reload="network.reload" />
           <SeoView v-if="seoVisited" :active="activeFeature === 'seo'" :dom="seoDom" :html="seoHtml" :status="seoStatus" :error="seoError" :source-notice="seoSourceNotice" :can-read-html="!!networkSession" @refresh="refreshSeo" @cancel="cancelSeo" @copy="artifacts.copy($event, '已复制 SEO 数据')" @download="downloadSeo" />
           <section v-show="activeFeature === 'data' && !!application" class="feature-card glass-card data-workbench" aria-label="数据工作区">
-            <DataView v-if="application && parsed" v-model:view="view" v-model:query="query" v-model:source-index="sourceIndex" v-model:detail-visible="detailVisible" v-model:split-size="splitSize" :application="application" :parsed="parsed" :tree="tree" :source="source" :selected-node="selectedNode" :focused-node="focusedNode" :search="search" :found="found" :selection-context="selectionContext" :data-detail="dataDetail" :source-labels="sourceLabels" @export="exportCurrent" @select="selectNode" @notice="showNotice" />
+            <DataView v-if="application && parsed" v-model:view="view" v-model:query="query" v-model:source-index="sourceIndex" v-model:detail-visible="detailVisible" :application="application" :parsed="parsed" :tree="tree" :source="source" :selected-node="selectedNode" :focused-node="focusedNode" :search="search" :found="found" :selection-context="selectionContext" :data-detail="dataDetail" :source-labels="sourceLabels" :resolve-node="resolveCopyNode" :active="activeFeature === 'data'" @export="exportCurrent" @select="selectNode" @notice="showNotice" />
           </section>
         </main>
       </UiTabPanel>
-      <InspectorFooter :status="activeFeature === 'network' ? 'ready' : activeFeature === 'seo' ? seoStatus : responseOverride ? status : pageStatus" :status-label="statusLabel" :capture-time="captureTime" :context-open="contextOpen" :render-label="renderLabel" :total-bytes="totalBytes" :source-count="activeFeature === 'data' ? application?.sources.length : undefined" @context="contextOpen = true" />
-      <ToastNotice :toast="toast" @dismiss="dismissNotice" @pause="pauseNotice" @resume="resumeNotice" />
+      <InspectorFooter :status="activeFeature === 'network' ? 'ready' : activeFeature === 'seo' ? seoStatus : responseOverride ? status : pageStatus" :status-label="statusLabel" :capture-time="captureTime" :context-open="contextOpen" :render-label="renderLabel" :total-bytes="totalBytes" :source-count="activeFeature === 'data' ? application?.sources.length : undefined" @context="contextOpen = true">
+        <template #notice>
+          <ToastNotice :toast="toast" @dismiss="dismissNotice" @pause="pauseNotice" @resume="resumeNotice" />
+        </template>
+      </InspectorFooter>
     </div>
   </UiTabs>
 </template>
