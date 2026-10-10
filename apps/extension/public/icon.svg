@@ -1,18 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64" fill="none">
-  <title>Page Inspector 项目图标</title>
-  <defs>
-    <linearGradient id="surface" x1="10" y1="4" x2="54" y2="62" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8C2D46" />
-      <stop offset="0.52" stop-color="#5A1D32" />
-      <stop offset="1" stop-color="#2B1525" />
-    </linearGradient>
-    <linearGradient id="edge" x1="8" y1="2" x2="52" y2="62" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFC0CB" stop-opacity="0.5" />
-      <stop offset="1" stop-color="#FFC0CB" stop-opacity="0.08" />
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#surface)" />
-  <rect x="2.5" y="2.5" width="59" height="59" rx="15.5" stroke="url(#edge)" />
-  <path d="M25 17H23C19.5 17 18 19 18 22V26C18 29.5 16.5 31 14 32C16.5 33 18 34.5 18 38V42C18 45 19.5 47 23 47H25M39 17H41C44.5 17 46 19 46 22V26C46 29.5 47.5 31 50 32C47.5 33 46 34.5 46 38V42C46 45 44.5 47 41 47H39" stroke="#FFB2C0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-  <rect x="28" y="28" width="8" height="8" rx="2.5" fill="#FFF7ED" />
+  <title>Page Inspector 插件图标</title>
+  <desc>墨色方块、暖白扫描框和蓝色数据线。</desc>
+  <!-- 轮廓按四个单位对齐，16px 输出保留清晰的一像素线条。 -->
+  <rect x="4" y="4" width="56" height="56" fill="#101014" />
+  <path d="M16 16H28V20H20V28H16ZM36 16H48V28H44V20H36ZM16 36H20V44H28V48H16ZM44 36H48V48H36V44H44Z" fill="#F2F1EE" />
+  <rect x="24" y="28" width="16" height="4" fill="#96BDFF" />
+  <rect x="24" y="36" width="12" height="4" fill="#96BDFF" />
 </svg>

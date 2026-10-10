@@ -1,16 +1,9 @@
 import type { SidePanel } from './fixtures'
 import { copyField, expect, test } from './fixtures'
 
-async function selectField(panel: SidePanel, key: string) {
+async function searchField(panel: SidePanel, key: string) {
   await panel.search(key)
   await expect.poll(() => panel.evaluate(key => [...document.querySelectorAll('.search-result .tree-key')].some(node => node.textContent === key), key)).toBe(true)
-  await panel.evaluate((key) => {
-    const field = [...document.querySelectorAll('.search-result .tree-select')].find(node => node.querySelector('.tree-key')?.textContent === key)!
-    field.setAttribute('data-copy-target', '')
-  }, key)
-  await panel.click('[data-copy-target]')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.detail-field-key')?.textContent?.trim())).toBe(key)
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
 }
 
 async function dismissToast(panel: SidePanel) {
@@ -24,27 +17,27 @@ test('当前值和当前属性复制实际文本，保留旧的带类型复制',
     await website.bringToFront()
     return website.evaluate(() => navigator.clipboard.readText())
   }
-  await selectField(panel, 'title')
-  await copyField(panel, 'value')
+  await searchField(panel, 'title')
+  await copyField(panel, 'value', 'title')
   await expect.poll(clipboard).toBe('Nuxt 3.17.5')
   await dismissToast(panel)
-  await copyField(panel, 'key')
+  await copyField(panel, 'key', 'title')
   await expect.poll(clipboard).toBe('title')
   await dismissToast(panel)
-  await selectField(panel, 'amount')
-  await copyField(panel, 'value')
+  await searchField(panel, 'amount')
+  await copyField(panel, 'value', 'amount')
   await expect.poll(clipboard).toBe('99n')
   await expect.poll(() => panel.text()).toContain('已复制当前值（JavaScript 表达式）')
   await dismissToast(panel)
-  await copyField(panel, 'typed')
+  await copyField(panel, 'typed', 'amount')
   await expect.poll(() => panel.evaluate(() => document.querySelector('.toast-message')?.textContent?.trim())).toBe('已复制带类型的数据')
   expect(JSON.parse(await clipboard())).toMatchObject({ format: 'page-inspector/v1', node: { type: 'bigint' } })
 
   await website.goto('http://127.0.0.1:4318/features')
   await expect.poll(() => panel.text()).toContain('feature-lab')
-  await selectField(panel, 'watched')
+  await searchField(panel, 'watched')
   await panel.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 780, deviceScaleFactor: 1, mobile: false })
-  await copyField(panel, 'value')
+  await copyField(panel, 'value', 'watched')
   await expect.poll(() => panel.evaluate(() => document.querySelector('.toast-message')?.textContent?.trim())).toBe('已复制当前值')
   expect(JSON.parse(await clipboard())).toEqual({ price: 120 })
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('.inspector-main')!.scrollTop === 0)).toBe(true)

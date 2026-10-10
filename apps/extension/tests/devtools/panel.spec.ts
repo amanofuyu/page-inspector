@@ -43,14 +43,14 @@ test('真实 DevTools 注册、固定标签页、HAR 事件与正文读取', asy
     expect(await panel.evaluate(() => chrome.devtools.inspectedWindow.tabId)).toBe(tabId)
     expect(await panel.evaluate(() => typeof chrome.devtools.network.getHAR)).toBe('function')
     await expect.poll(() => panel.text()).toContain('sample')
-    // 扩展嵌入宿主窗口，宽窄布局都让数据树占满模块，详情保留在字段行内。
-    await panel.click('.data-tree-pane .tree-row:has(> [aria-label="展开 sample"]) .tree-select')
+    // 扩展嵌入宿主窗口，宽窄布局都让数据树占满模块，分支只展开子节点。
+    await panel.click('.data-tree-pane [aria-label="展开 sample"]')
     for (const width of [900, 560]) {
       await frontend.send('Emulation.setDeviceMetricsOverride', { width, height: 780, deviceScaleFactor: 1, mobile: false })
       await expect.poll(() => panel.evaluate(() => {
         const tree = document.querySelector('.data-tree-pane')!.getBoundingClientRect()
-        const detail = document.querySelector('.tree-inline-detail')!.getBoundingClientRect()
-        return !document.querySelector('.ui-split-handle') && detail.left >= tree.left && detail.right <= tree.right
+        const shell = document.querySelector('.inspector-shell')!.getBoundingClientRect()
+        return !document.querySelector('.ui-split-handle, [aria-label^="字段详情"]') && tree.left >= shell.left && tree.right <= shell.right
           && document.documentElement.scrollWidth <= innerWidth
       })).toBe(true)
     }

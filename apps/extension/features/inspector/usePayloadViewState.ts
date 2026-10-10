@@ -5,7 +5,6 @@ import { computed, ref, watch } from 'vue'
 import { buildPayloadView, searchTree } from '../nuxt/format'
 import { parseApp } from '../nuxt/parse'
 import { unwrap } from '../nuxt/types'
-import { useDataSelection } from './useDataSelection'
 
 export const PAYLOAD_VIEWS = [
   { id: 'data', label: '数据' },
@@ -27,7 +26,6 @@ export function usePayloadViewState(application: Ref<CollectedApp | undefined>, 
   const source = computed(() => application.value?.sources[sourceIndex.value])
   const selectedNode = computed(() => tree.value?.root)
   const selectionContext = computed(() => `${context.value}:${view.value}`)
-  const { selected: focusedNode, visible: detailVisible, select: selectNode } = useDataSelection(selectedNode, selectionContext)
   const found = computed(() => selectedNode.value ? searchTree(selectedNode.value, search.value) : { matches: [], limited: false })
   const renderLabel = computed(() => {
     const value = unwrap(parsed.value?.payload?.serverRendered) ?? application.value?.serverRendered
@@ -44,5 +42,5 @@ export function usePayloadViewState(application: Ref<CollectedApp | undefined>, 
   watch(view, () => {
     query.value = ''
   })
-  return { sourceIndex, view, query, search, parsed, tree, source, selectedNode, selectionContext, focusedNode, detailVisible, selectNode, found, renderLabel }
+  return { sourceIndex, view, query, search, parsed, tree, source, selectedNode, selectionContext, found, renderLabel }
 }

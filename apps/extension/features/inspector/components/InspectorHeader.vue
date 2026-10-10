@@ -21,7 +21,7 @@ const pageAddress = computed(() => {
 <template>
   <header class="app-header">
     <div class="brand">
-      <img class="brand-icon" src="/icon.svg" width="24" height="24" alt="" aria-hidden="true">
+      <img class="brand-icon" src="/icon.svg" alt="" width="24" height="24">
       <h1>Page Inspector</h1>
     </div>
     <UiTooltip :content="`${pageTitle}\n${currentUrl}`">

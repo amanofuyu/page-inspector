@@ -26,19 +26,17 @@ function setup() {
 }
 
 describe('数据区和网络区的派生视图', () => {
-  it('同文档刷新保留应用身份、草稿和详情偏好，视图读取最新值', async () => {
+  it('同文档刷新保留应用身份和搜索草稿，视图读取最新值', async () => {
     const state = setup()
     state.result.value = snapshot()
     await nextTick()
     state.selected.appIndex.value = 1
     await nextTick()
     state.view.query.value = 'counter'
-    state.view.detailVisible.value = false
     state.result.value = snapshot('文档一', [application('a'), application('b', 2)])
     await nextTick()
     expect(state.selected.application.value?.id).toBe('b')
     expect(state.view.query.value).toBe('counter')
-    expect(state.view.detailVisible.value).toBe(false)
     expect(state.view.tree.value?.root.children?.[0]?.value).toBe(2)
     state.status.value = 'error'
     expect(state.selected.status.value).toBe('ready')

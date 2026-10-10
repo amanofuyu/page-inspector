@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import type { SeoSnapshot } from '../model'
+import type { SeoImage, SeoSnapshot } from '../model'
+import { Copy } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiEmptyState from '@/components/ui/UiEmptyState.vue'
 import UiSelect from '@/components/ui/UiSelect.vue'
 import { safeSeoUrl } from '../page-data'
 import { imageCsv, linkCsv } from '../presentation'
+import SeoImagePreview from './SeoImagePreview.vue'
 import SeoMetrics from './SeoMetrics.vue'
 import SeoUrl from './SeoUrl.vue'
 
@@ -49,6 +51,21 @@ function download(full: boolean) {
   const text = props.kind === 'links' ? full ? linkCsv(filteredLinks.value) : filteredLinks.value.map(link => link.url || link.href || '').join('\n') : full ? imageCsv(filteredImages.value) : filteredImages.value.map(image => image.url || image.src || '').join('\n')
   emit('download', text, `seo-${props.kind}${full ? '.csv' : '.txt'}`, full ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8')
 }
+function imageName(image: SeoImage, index: number) {
+  const url = safeSeoUrl(image.url)
+  if (url) {
+    const filename = new URL(url).pathname.split('/').at(-1)
+    if (filename) {
+      try {
+        return decodeURIComponent(filename)
+      }
+      catch {
+        return filename
+      }
+    }
+  }
+  return image.title || `图片 ${index + 1}`
+}
 </script>
 
 <template>
@@ -71,72 +88,105 @@ function download(full: boolean) {
         </UiActionButton>
       </div>
     </div>
-    <div class="seo-result-heading">
-      <h4>{{ kind === 'links' ? '链接明细' : '图片明细' }}</h4>
-      <p class="feature-caption" role="status">
-        {{ total }} 条匹配 · 已显示 {{ Math.min(limit, total) }} 条
+    <div class="seo-resource-results-heading">
+      <div class="seo-result-heading">
+        <h4>{{ kind === 'links' ? '链接明细' : '图片明细' }}</h4>
+        <p class="feature-caption" role="status">
+          {{ total }} 条匹配 · 已显示 {{ Math.min(limit, total) }} 条
+        </p>
+      </div>
+      <p class="feature-caption">
+        导出包含全部匹配项。
       </p>
     </div>
-    <p class="feature-caption">
-      导出包含全部匹配项。
-    </p>
-    <template v-if="kind === 'links'">
-      <article v-for="(link, index) in filteredLinks.slice(0, limit)" :key="link.id" class="seo-item seo-link-item">
-        <header class="seo-record-heading">
-          <span class="seo-record-number">{{ index + 1 }}</span>
-          <span class="seo-chip">{{ { internal: '内链', external: '外链', other: '其他' }[link.kind] }}</span>
-          <span v-if="link.truncated" class="seo-muted">已截断</span>
-          <UiActionButton size="sm" @click="emit('copy', link.url || link.href || '')">
-            复制链接
+    <div v-if="kind === 'links'" class="seo-links-list">
+      <article v-for="(link, index) in filteredLinks.slice(0, limit)" :key="link.id" class="seo-item seo-resource-card seo-link-item">
+        <header class="seo-resource-heading">
+          <span class="seo-resource-number">{{ index + 1 }}</span>
+          <div class="seo-resource-heading-content">
+            <h5 class="seo-resource-title">
+              {{ link.text || '（无链接文字）' }}
+            </h5>
+            <div class="seo-resource-meta">
+              <span class="seo-chip seo-link-kind" :data-kind="link.kind">{{ { internal: '内链', external: '外链', other: '其他' }[link.kind] }}</span>
+              <span v-if="link.truncated" class="seo-chip">已截断</span>
+            </div>
+          </div>
+          <UiActionButton icon-only size="sm" label="复制链接" :disabled="!(link.url || link.href || '').trim()" @click="emit('copy', link.url || link.href || '')">
+            <Copy :size="16" aria-hidden="true" />
           </UiActionButton>
         </header>
-        <strong class="seo-link-text">{{ link.text || '（无链接文字）' }}</strong>
-        <dl class="seo-resource-details">
-          <dt>目标地址</dt>
-          <dd>
-            <SeoUrl :value="link.url || link.href || ''" />
-            <small v-if="link.href !== link.url">原始地址：{{ link.href ?? '无 href 属性' }}</small>
-          </dd>
-          <dt>rel</dt>
-          <dd class="seo-tag-list">
-            <span v-for="(rel, relIndex) in link.rel" :key="relIndex" class="seo-chip">{{ rel }}</span>
-            <span v-if="!link.rel.length" class="seo-muted">未设置</span>
-          </dd>
-          <template v-if="link.title">
+        <div class="seo-resource-address">
+          <span class="seo-resource-label">目标地址</span>
+          <SeoUrl class="seo-resource-url" :value="link.url || link.href || ''" />
+        </div>
+        <dl class="seo-resource-details seo-link-attributes">
+          <div class="seo-resource-property">
+            <dt>rel</dt>
+            <dd class="seo-tag-list">
+              <span v-for="(rel, relIndex) in link.rel" :key="relIndex" class="seo-chip">{{ rel }}</span>
+              <span v-if="!link.rel.length" class="seo-muted">未设置</span>
+            </dd>
+          </div>
+          <div v-if="link.title" class="seo-resource-property">
             <dt>title</dt><dd>{{ link.title }}</dd>
-          </template>
+          </div>
+          <div v-if="link.href !== link.url" class="seo-resource-property">
+            <dt>原始地址</dt><dd class="seo-resource-original">
+              {{ link.href ?? '无 href 属性' }}
+            </dd>
+          </div>
         </dl>
       </article>
-    </template>
-    <template v-else>
-      <article v-for="(image, index) in filteredImages.slice(0, limit)" :key="image.id" class="seo-item seo-image-item">
-        <header class="seo-record-heading">
-          <strong>图片 {{ index + 1 }}</strong>
-          <span v-if="image.truncated" class="seo-muted">已截断</span>
-          <UiActionButton size="sm" @click="emit('copy', image.url || image.src || '')">
-            复制图片地址
+    </div>
+    <div v-else class="seo-images-grid">
+      <article v-for="(image, index) in filteredImages.slice(0, limit)" :key="image.id" class="seo-item seo-resource-card seo-image-item">
+        <header class="seo-resource-heading">
+          <span class="seo-resource-number">{{ index + 1 }}</span>
+          <div class="seo-resource-heading-content">
+            <h5 class="seo-resource-title">
+              {{ imageName(image, index) }}
+            </h5>
+            <div class="seo-resource-meta">
+              <span class="seo-chip" :data-alt="image.alt === null ? 'missing' : image.alt.trim() ? 'text' : 'empty'">{{ image.alt === null ? '未设置 alt' : image.alt.trim() ? 'alt 已填写' : 'alt 为空' }}</span>
+              <span v-if="image.truncated" class="seo-chip">已截断</span>
+            </div>
+          </div>
+          <UiActionButton icon-only size="sm" label="复制图片地址" :disabled="!(image.url || image.src || '').trim()" @click="emit('copy', image.url || image.src || '')">
+            <Copy :size="16" aria-hidden="true" />
           </UiActionButton>
         </header>
         <div class="seo-image-body">
-          <div class="seo-thumbnail-wrap">
-            <img v-if="safeSeoUrl(image.url)" :src="image.url" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" class="seo-thumbnail">
-            <span v-else class="seo-muted">无预览</span>
-          </div>
+          <SeoImagePreview :src="image.url" :label="imageName(image, index)" />
           <dl class="seo-resource-details">
-            <dt>alt</dt><dd>{{ image.alt === null ? '无 alt 属性' : image.alt.trim() ? image.alt : '空 alt（可能为装饰性图片）' }}</dd>
-            <dt>尺寸</dt><dd>{{ image.width || '未知' }} × {{ image.height || '未知' }}</dd>
-            <template v-if="image.title">
+            <div class="seo-resource-property">
+              <dt>尺寸</dt><dd class="seo-image-dimensions">
+                {{ image.width || '未知' }} × {{ image.height || '未知' }}
+              </dd>
+            </div>
+            <div class="seo-resource-property">
+              <dt>alt 文本</dt><dd :class="{ 'seo-muted': !image.alt?.trim() }">
+                {{ image.alt === null ? '无 alt 属性' : image.alt.trim() ? image.alt : '空 alt（可能为装饰性图片）' }}
+              </dd>
+            </div>
+            <div v-if="image.title" class="seo-resource-property">
               <dt>title</dt><dd>{{ image.title }}</dd>
-            </template>
-            <dt>图片地址</dt>
-            <dd>
-              <SeoUrl :value="image.url || image.src || ''" />
-              <small v-if="image.src !== image.url">原始地址：{{ image.src ?? '无 src 属性' }}</small>
-            </dd>
+            </div>
           </dl>
         </div>
+        <div class="seo-resource-address">
+          <span class="seo-resource-label">图片地址</span>
+          <SeoUrl class="seo-resource-url" :value="image.url || image.src || ''" />
+        </div>
+        <dl v-if="image.src !== image.url" class="seo-resource-details seo-image-original">
+          <div class="seo-resource-property">
+            <dt>原始地址</dt><dd class="seo-resource-original">
+              {{ image.src ?? '无 src 属性' }}
+            </dd>
+          </div>
+        </dl>
       </article>
-    </template>
+    </div>
     <UiEmptyState v-if="!total">
       当前筛选下没有匹配项。
     </UiEmptyState>

@@ -59,23 +59,18 @@ async function moduleScroll(panel: SidePanel, selector: string) {
 }
 
 for (const [width, height] of [[900, 780], [560, 780], [320, 480]]) {
-  test(`数据树与行内详情共用滚动区域，外层固定 ${width}×${height}`, async ({ extension }, testInfo) => {
+  test(`数据树独立滚动，外层固定 ${width}×${height}`, async ({ extension }, testInfo) => {
     const { panel, website } = extension
     await panel.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
     await website.goto('http://127.0.0.1:4318/large')
     await expect.poll(() => panel.text()).toContain('已限制为 10,000')
     await expect.poll(() => outerLayout(panel)).toEqual(fixedOuter)
     expect(await panel.evaluate(() => !document.querySelector('.ui-split-handle'))).toBe(true)
-    await panel.click('.tree-container > .tree-node > .tree-row .tree-select')
-    await expect.poll(() => panel.evaluate(() => !!document.querySelector('.tree-inline-detail'))).toBe(true)
-    expect(await panel.evaluate(() => {
-      const detail = document.querySelector('.tree-inline-detail')!
-      return !!detail.closest('.tree-container') && getComputedStyle(detail).overflowY !== 'auto'
-    })).toBe(true)
+    expect(await panel.evaluate(() => document.querySelector('[aria-label^="字段详情"]'))).toBeNull()
     await moduleScroll(panel, '.tree-container')
     expect(await outerLayout(panel)).toEqual(fixedOuter)
 
-    // 搜索结果和来源弹窗共用固定外层，字段详情随搜索结果一起滚动。
+    // 搜索结果和来源弹窗共用固定外层，搜索结果仍在数据模块内滚动。
     await panel.search('项目')
     await expect.poll(() => panel.evaluate(() => !!document.querySelector('.search-result'))).toBe(true)
     await moduleScroll(panel, '.search-results')

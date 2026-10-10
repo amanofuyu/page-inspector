@@ -146,7 +146,9 @@ function exportSchema() {
                     {{ fields.length }} 个匹配字段
                   </p>
                   <section v-for="group in fieldGroups" :key="group.key" class="seo-field-group" :aria-label="group.label">
-                    <h4>{{ group.label }}</h4>
+                    <header class="seo-field-group-heading">
+                      <h4>{{ group.label }}</h4>
+                    </header>
                     <div v-for="field in group.fields" :key="field.id" class="seo-field-record" :class="{ 'seo-heading-record': section === 'headings' }" :style="section === 'headings' ? { '--seo-heading-depth': Number(field.label.slice(1)) - 1 } : undefined">
                       <SeoFieldRow :field="field" :source="display === 'dom' ? 'DOM' : 'HTML'" :open="expanded === field.id" @update:open="setExpanded(field.id, $event)" @copy="emit('copy', $event)" />
                       <div v-if="field.group === 'languages'" class="seo-language-actions">

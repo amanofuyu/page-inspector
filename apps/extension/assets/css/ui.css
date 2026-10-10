@@ -1,4 +1,57 @@
 /* 基础组件仅依赖全局主题变量，浮层传送到 body 后仍沿用当前主题。 */
+.ui-json-code {
+  min-width: 0;
+  max-width: 100%;
+  max-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--inspector-line);
+  border-radius: var(--radius-control);
+  background: var(--inspector-code);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--font-size-xs);
+  line-height: 1.8;
+  user-select: text;
+}
+.ui-json-code pre {
+  margin: 0;
+  padding: 12px;
+  font: inherit;
+  white-space: pre;
+  overflow-wrap: normal;
+  counter-reset: json-line;
+}
+.ui-json-code code {
+  font: inherit;
+}
+/* 行号由样式生成，不混入代码文本与复制内容。 */
+.ui-json-code[data-compact='false'] .line::before {
+  content: counter(json-line);
+  counter-increment: json-line;
+  display: inline-block;
+  width: 3ch;
+  margin-inline-end: 16px;
+  color: var(--inspector-muted);
+  text-align: right;
+  user-select: none;
+}
+.ui-json-code .shiki,
+.ui-json-code .shiki span {
+  background-color: transparent !important;
+}
+.ui-json-code[data-compact='true'] pre {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+  padding: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ui-json-code-notice {
+  padding: 8px 12px 0;
+  color: var(--inspector-muted);
+}
 .ui-tooltip {
   max-width: min(320px, calc(100vw - 24px));
   padding: 4px 8px;
@@ -36,16 +89,18 @@
   position: absolute;
   z-index: -1;
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--inspector-emphasis) 20%, transparent);
+  border: 0;
   border-radius: inherit;
   background: var(--tab-active);
-  box-shadow: inset 0 1px 0 var(--glass-glint);
+  box-shadow: inset 0 -2px var(--inspector-emphasis);
   pointer-events: none;
 }
 .inspector-shell .ui-tab-list button[data-selected] {
   background: transparent;
-  border-color: transparent;
   box-shadow: none;
+}
+.ui-tab-list button:focus-visible {
+  outline-offset: -3px;
 }
 [data-motion-presence='leave'] {
   pointer-events: none;
@@ -468,11 +523,9 @@
   margin: 8px 0;
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, var(--notice-accent) 24%, var(--inspector-line));
+  border-inline-start: 3px solid var(--notice-accent);
   border-radius: var(--radius-panel);
-  background:
-    linear-gradient(135deg, var(--glass-glint), transparent 70%),
-    color-mix(in srgb, var(--notice-accent) 5%, var(--glass-surface));
-  box-shadow: inset 0 1px 0 var(--glass-glint);
+  background: color-mix(in srgb, var(--notice-accent) 5%, var(--glass-surface));
   color: var(--color-base-content);
   font-size: var(--font-size-xs);
   font-weight: 400;
@@ -541,8 +594,7 @@
   margin-bottom: 4px;
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius-panel);
-  background: linear-gradient(135deg, var(--tab-active), var(--glass-surface));
-  box-shadow: inset 0 1px 0 var(--glass-glint);
+  background: var(--glass-panel);
   color: var(--inspector-emphasis);
 }
 .empty-state-error .empty-state-icon {
@@ -550,8 +602,8 @@
 }
 .ui-empty-state h2 {
   font-size: var(--font-size-lg);
-  font-weight: 550;
-  letter-spacing: -0.3px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
 }
 .ui-empty-description {
   max-width: 100%;

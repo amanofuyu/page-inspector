@@ -183,17 +183,20 @@ export const test = base.extend<InspectorOptions & {
   },
 })
 export { expect } from '@playwright/test'
-/** 从选中行或根行打开复制菜单，验证菜单关闭后焦点回到行内入口。 */
-export async function copyField(panel: SidePanel, mode: 'value' | 'key' | 'path' | 'typed') {
-  await panel.evaluate(() => {
+/** 从指定字段、焦点所在行、搜索结果或根行打开复制菜单，并验证焦点恢复。 */
+export async function copyField(panel: SidePanel, mode: 'value' | 'key' | 'path' | 'typed', key?: string) {
+  await panel.evaluate((key) => {
     for (const element of document.querySelectorAll('[data-test-copy]'))
       element.removeAttribute('data-test-copy')
-    const trigger = document.querySelector('.tree-row-selected > .tree-actions .ui-menu-trigger')
-      ?? document.querySelector('.tree-container > .tree-node > .tree-row > .tree-actions .ui-menu-trigger')
+    const rows = document.querySelectorAll('.search-result > .tree-node > .tree-row, .tree-container .tree-row')
+    const row = key
+      ? [...rows].find(row => row.querySelector('.tree-key')?.textContent === key)
+      : document.activeElement?.closest('.tree-row') ?? rows[0]
+    const trigger = row?.querySelector('.tree-actions .ui-menu-trigger')
     if (!trigger)
       throw new Error('找不到字段复制菜单')
     trigger.setAttribute('data-test-copy', '')
-  })
+  }, key)
   await panel.click('[data-test-copy]')
   await panel.click(`[role="menuitem"][data-value="${mode}"]`)
   await expect.poll(() => panel.evaluate(() => !!document.activeElement?.matches('[data-test-copy]'))).toBe(true)

@@ -3,6 +3,7 @@ import type { SeoField } from '../model'
 import { computed } from 'vue'
 import UiActionButton from '@/components/ui/UiActionButton.vue'
 import UiDisclosure from '@/components/ui/UiDisclosure.vue'
+import UiJsonCode from '@/components/ui/UiJsonCode.vue'
 import UiNotice from '@/components/ui/UiNotice.vue'
 import { seoFieldPreview } from '../preview'
 
@@ -19,18 +20,23 @@ const summary = computed(() => props.field.group === 'structured' ? preview.valu
       <span class="seo-badge">{{ field.value.length.toLocaleString() }} 字符{{ field.truncated ? ' · 已截断' : '' }}</span>
     </template>
     <template #preview>
-      <div class="seo-values seo-single">
+      <div v-if="field.key !== 'jsonld'" class="seo-values seo-single">
         <p :class="{ 'seo-json-preview': field.group === 'structured' }">
           {{ summary || '（空值）' }}
         </p>
       </div>
     </template>
     <div class="seo-field-detail">
-      <div class="feature-heading">
-        <strong>{{ source }} · {{ field.location }} · {{ field.value.length.toLocaleString() }} 字符</strong>
-        <UiActionButton :label="`复制 ${source} ${field.label}`" @click="emit('copy', field.snippet)">
-          {{ field.key === 'microdata' ? '复制数据 JSON' : '复制标签' }}
-        </UiActionButton>
+      <div class="seo-field-detail-heading">
+        <span class="seo-field-meta">{{ source }} · {{ field.location }} · {{ field.value.length.toLocaleString() }} 字符</span>
+        <div class="seo-field-actions">
+          <UiActionButton v-if="field.key === 'jsonld'" :label="`复制 ${source} JSON-LD 原文`" @click="emit('copy', field.value)">
+            复制 JSON
+          </UiActionButton>
+          <UiActionButton :label="`复制 ${source} ${field.label}`" @click="emit('copy', field.snippet)">
+            {{ field.key === 'microdata' ? '复制数据 JSON' : '复制标签' }}
+          </UiActionButton>
+        </div>
       </div>
       <UiNotice v-if="field.truncated" severity="warning">
         该字段达到读取上限，以下为已采集部分。
@@ -38,11 +44,12 @@ const summary = computed(() => props.field.group === 'structured' ? preview.valu
       <UiNotice v-if="field.jsonError" severity="warning">
         JSON 无法解析：{{ field.jsonError }}
       </UiNotice>
-      <pre>{{ preview.text }}</pre>
+      <UiJsonCode v-if="field.key === 'jsonld'" :code="preview.text" :label="`${source} ${field.label} 内容`" />
+      <pre v-else>{{ preview.text }}</pre>
       <p v-if="preview.truncated" class="feature-caption">
         仅预览前 16,000 字符；复制保留完整已采集内容。
       </p>
-      <UiActionButton @click="emit('copy', field.value)">
+      <UiActionButton v-if="field.key !== 'jsonld'" @click="emit('copy', field.value)">
         复制字段值
       </UiActionButton>
     </div>

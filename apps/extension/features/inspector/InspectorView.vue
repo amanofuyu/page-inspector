@@ -40,7 +40,7 @@ const workspaces = computed(() => [
 ])
 const selected = useSnapshotSelection(result, pageStatus, responseOverride)
 const { appIndex, snapshot, application, status, context, resetRevision } = selected
-const { sourceIndex, view, query, search, parsed, tree, source, selectedNode, selectionContext, focusedNode, detailVisible, selectNode, found, renderLabel } = usePayloadViewState(application, context, resetRevision)
+const { sourceIndex, view, query, search, parsed, tree, source, selectedNode, selectionContext, found, renderLabel } = usePayloadViewState(application, context, resetRevision)
 const artifacts = useArtifactActions(showNotice)
 const seoVisited = ref(false)
 const network = useNetworkSession({ enabled: !!props.devtools, documentId: () => result.value?.documentId, snapshot: () => result.value?.snapshot, notice: showNotice })
@@ -50,17 +50,9 @@ const { dom: seoDom, html: seoHtml, status: seoStatus, error: seoError, sourceNo
   active: () => activeFeature.value === 'seo',
   network: () => networkSession,
 })
-const dataDetail = computed(() => activeFeature.value === 'data' && detailVisible.value && parsed.value && focusedNode.value ? fieldDetail(parsed.value, focusedNode.value) : null)
 function resolveCopyNode(node: DataNode) {
-  if (node.path === focusedNode.value?.path && dataDetail.value?.tree)
-    return dataDetail.value.tree.root
   return parsed.value ? fieldDetail(parsed.value, node)?.tree?.root ?? node : node
 }
-const sourceLabels = computed(() => dataDetail.value?.sourceIds.map((id) => {
-  const position = parsed.value?.sources.findIndex(source => source.sourceId === id) ?? -1
-  const source = application.value?.sources[position]
-  return source ? `${source.kind === 'inline' ? '内嵌' : '外部'} · ${source.transport ?? '来源'}` : '来源未确认'
-}) ?? [])
 const statusLabel = computed(() => activeFeature.value === 'network' ? '网络观察中' : activeFeature.value === 'seo' ? ({ idle: '等待采集', loading: '读取中', ready: 'SEO 已采集', error: '读取失败' })[seoStatus.value] : responseOverride.value ? '浏览器响应' : ({ loading: '读取中', ready: '已采集', empty: '无数据', error: '读取失败' })[pageStatus.value])
 const pageTitle = computed(() => activeFeature.value === 'seo' ? seoDom.value?.fields.find(field => field.key === 'title')?.value || '页面 SEO 检查' : snapshot.value?.title || 'Nuxt 数据查看器')
 const refreshing = computed(() => activeFeature.value === 'network' ? false : activeFeature.value === 'seo' ? seoStatus.value === 'loading' : pageStatus.value === 'loading')
@@ -176,7 +168,7 @@ watch([result, view, resetRevision], dismissNotice)
           <NetworkView v-if="networkSession" :session="networkSession" :revision="networkRevision" :startup-error="networkError" :active="activeFeature === 'network'" :tab-id="targetTabId" @inspect="inspectNetwork" @read="network.read" @copy="network.copyUrl" @clear="network.clear" @reload="network.reload" />
           <SeoView v-if="seoVisited" :active="activeFeature === 'seo'" :dom="seoDom" :html="seoHtml" :status="seoStatus" :error="seoError" :source-notice="seoSourceNotice" :can-read-html="!!networkSession" @refresh="refreshSeo" @cancel="cancelSeo" @copy="artifacts.copy($event, '已复制 SEO 数据')" @download="downloadSeo" />
           <section v-show="activeFeature === 'data' && !!application" class="feature-card glass-card data-workbench" aria-label="数据工作区">
-            <DataView v-if="application && parsed" v-model:view="view" v-model:query="query" v-model:source-index="sourceIndex" v-model:detail-visible="detailVisible" :application="application" :parsed="parsed" :tree="tree" :source="source" :selected-node="selectedNode" :focused-node="focusedNode" :search="search" :found="found" :selection-context="selectionContext" :data-detail="dataDetail" :source-labels="sourceLabels" :resolve-node="resolveCopyNode" :active="activeFeature === 'data'" @export="exportCurrent" @select="selectNode" @notice="showNotice" />
+            <DataView v-if="application && parsed" v-model:view="view" v-model:query="query" v-model:source-index="sourceIndex" :application="application" :parsed="parsed" :tree="tree" :source="source" :selected-node="selectedNode" :search="search" :found="found" :selection-context="selectionContext" :resolve-node="resolveCopyNode" :active="activeFeature === 'data'" @export="exportCurrent" @notice="showNotice" />
           </section>
         </main>
       </UiTabPanel>

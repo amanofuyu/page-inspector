@@ -44,8 +44,7 @@ test('实际操作按成功和警告切换图标及明暗主题配色', async ({
 test('操作提示固定在窄侧栏右下角，滚动不移位且悬停暂停自动关闭', async ({ extension }, testInfo) => {
   const { panel } = extension
   await panel.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 780, deviceScaleFactor: 1, mobile: false })
-  await panel.click('.data-tree-pane .tree-row:has(> [aria-label="展开 sample"]) .tree-select')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
+  await panel.click('.data-tree-pane [aria-label="展开 sample"]')
   await panel.evaluate(async () => {
     await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))
   })
@@ -100,8 +99,7 @@ test('操作提示固定在窄侧栏右下角，滚动不移位且悬停暂停�
 
 test('同文案提示更新、键盘停留与关闭、焦点恢复及自动消失', async ({ extension }) => {
   const { panel } = extension
-  await panel.click('.data-tree-pane .tree-row:has(> [aria-label="展开 sample"]) .tree-select')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
+  await panel.click('.data-tree-pane [aria-label="展开 sample"]')
   await copyField(panel, 'typed')
   await expect.poll(() => panel.evaluate(() => !!document.querySelector('.toast-message'))).toBe(true)
   const trigger = await panel.evaluate(() => document.activeElement?.getAttribute('aria-label'))

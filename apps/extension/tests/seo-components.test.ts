@@ -2,6 +2,7 @@
 import type { SeoSnapshot } from '../features/seo/model'
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import SeoFieldRow from '../features/seo/components/SeoFieldRow.vue'
 import { parseSeoHtml } from '../features/seo/parse-html'
 import SeoView from '../features/seo/SeoView.vue'
 
@@ -105,6 +106,53 @@ describe('sEO 参考视图的数据与事件契约', () => {
     expect(wrapper.find('.seo-tools').text()).toContain('PageSpeed Insights')
   })
 
+  it('折叠 JSON-LD 时只显示标题与字符数，展开代码高亮且复制保留完整原文', async () => {
+    const json = '{"@context":"https://schema.org","@type":"Article","name":"一","name":"二","large":9007199254740993,"text":"<img src=x onerror=alert(1)>"}'
+    const { wrapper, dom } = setup(`<script type="application/ld+json">${json}</script>`)
+    const original = JSON.stringify(dom)
+    await section(wrapper, '结构化数据')
+    expect(wrapper.get('[data-key="jsonld"]').text()).toContain('JSON-LD · Article')
+    expect(wrapper.get('[data-key="jsonld"]').text()).toContain(`${json.length} 字符`)
+    expect(wrapper.find('[data-key="jsonld"] .ui-json-code').exists()).toBe(false)
+    expect(wrapper.find('[data-key="jsonld"] .seo-values').exists()).toBe(false)
+    await wrapper.get('[data-key="jsonld"] > .ui-disclosure-trigger').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('.seo-field-detail .shiki').exists()).toBe(true))
+    expect(wrapper.find('.seo-json-summary').exists()).toBe(false)
+    expect(wrapper.get('.seo-field-detail code').text()).toContain('9007199254740993')
+    expect(wrapper.get('.seo-field-detail code').text().match(/"name"/g)).toHaveLength(2)
+    expect(wrapper.findAll('.seo-field-detail img')).toHaveLength(0)
+    await wrapper.get('[aria-label="复制 DOM JSON-LD 原文"]').trigger('click')
+    expect(wrapper.emitted('copy')!.at(-1)).toEqual([json])
+    const field = dom.fields.find(field => field.key === 'jsonld')!
+    await wrapper.get(`[aria-label="复制 DOM ${field.label}"]`).trigger('click')
+    expect(wrapper.emitted('copy')!.at(-1)).toEqual([field.snippet])
+    await wrapper.get('[data-key="jsonld"] > .ui-disclosure-trigger').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('[data-key="jsonld"] .ui-json-code').exists()).toBe(false))
+    expect(wrapper.get('[data-key="jsonld"]').text()).not.toContain('schema.org')
+    expect(JSON.stringify(dom)).toBe(original)
+  })
+
+  it('语法错误可查看高亮原文，超长 JSON-LD 预览有上限且复制包含完整内容', async () => {
+    const broken = setup('<script type="application/ld+json">{"bad"}</script>')
+    await section(broken.wrapper, '结构化数据')
+    await broken.wrapper.get('[data-key="jsonld"] > .ui-disclosure-trigger').trigger('click')
+    await vi.waitFor(() => expect(broken.wrapper.find('.seo-field-detail .shiki').exists()).toBe(true))
+    expect(broken.wrapper.get('.seo-field-detail').text()).toContain('JSON 无法解析')
+    expect(broken.wrapper.get('.seo-field-detail code').text()).toBe('{"bad"}')
+    const json = `{"@type":"Article","text":"${'内容'.repeat(12000)}"}`
+    const { wrapper } = setup(`<script type="application/ld+json">${json}</script>`)
+    await section(wrapper, '结构化数据')
+    await wrapper.get('[data-key="jsonld"] > .ui-disclosure-trigger').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('.seo-field-detail .shiki').exists()).toBe(true))
+    expect(wrapper.get('.seo-field-detail code').text()).toHaveLength(16000)
+    expect(wrapper.get('.seo-field-detail').text()).toContain('仅预览前 16,000 字符')
+    await wrapper.get('[aria-label="复制 DOM JSON-LD 原文"]').trigger('click')
+    expect(wrapper.emitted('copy')!.at(-1)).toEqual([json])
+    const field = wrapper.getComponent(SeoFieldRow).props('field')
+    await wrapper.setProps({ dom: { ...wrapper.props('dom')!, fields: [{ ...field, truncated: true }] } })
+    expect(wrapper.get('.seo-field-detail').text()).toContain('该字段达到读取上限')
+  })
+
   it('链接首屏只渲染 50 条，导出包含全部匹配项，切换图片不会复用链接筛选', async () => {
     const { wrapper } = setup(`<title>页面</title><body>${Array.from({ length: 57 }, (_, index) => `<a href="/link-${index}">链接 ${index}</a>`).join('')}<img src="logo.png" alt="标志"><img src="decoration.png" alt=""></body>`)
     await section(wrapper, '链接')
@@ -116,8 +164,37 @@ describe('sEO 参考视图的数据与事件契约', () => {
     await section(wrapper, '图片')
     expect(wrapper.findAll('.seo-image-item')).toHaveLength(2)
     expect(wrapper.text()).toContain('空 alt（可能为装饰性图片）')
-    await wrapper.findAll('.seo-image-item button')[0]!.trigger('click')
+    await wrapper.get('.seo-image-item [aria-label="复制图片地址"]').trigger('click')
     expect(wrapper.emitted('copy')!.at(-1)).toEqual(['https://example.com/logo.png'])
+  })
+
+  it('图片加载失败显示占位，切换地址后恢复预览并保持完整地址复制', async () => {
+    const { wrapper, dom } = setup('<body><img src="logo.png" alt="标志" width="320" height="240"><img src="javascript:alert(1)"><img></body>')
+    const original = JSON.stringify(dom)
+    await section(wrapper, '图片')
+    const card = wrapper.findAll('.seo-image-item')[0]!
+    const previous = card.get('img')
+    await previous.trigger('error')
+    expect(card.find('img').exists()).toBe(false)
+    expect(card.get('.seo-thumbnail-placeholder').text()).toContain('图片加载失败')
+    await card.get('[aria-label="复制图片地址"]').trigger('click')
+    expect(wrapper.emitted('copy')!.at(-1)).toEqual(['https://example.com/logo.png'])
+    const unsupported = wrapper.findAll('.seo-image-item')[1]!
+    expect(unsupported.find('img, a').exists()).toBe(false)
+    expect(unsupported.text()).toContain('无预览')
+    await unsupported.get('[aria-label="复制图片地址"]').trigger('click')
+    expect(wrapper.emitted('copy')!.at(-1)).toEqual(['javascript:alert(1)'])
+    expect(wrapper.findAll('.seo-image-item')[2]!.get('[aria-label="复制图片地址"]').attributes('disabled')).toBeDefined()
+
+    const image = { ...dom.page!.images[0]!, src: '/新版标志.png', url: 'https://example.com/%E6%96%B0%E7%89%88%E6%A0%87%E5%BF%97.png?size=large' }
+    await wrapper.setProps({ dom: { ...dom, page: { ...dom.page!, images: [image] } } })
+    expect(card.get('img').attributes('src')).toBe(image.url)
+    expect(card.get('.seo-resource-title').text()).toBe('新版标志.png')
+    await previous.trigger('error')
+    expect(card.find('img').exists()).toBe(true)
+    await card.get('[aria-label="复制图片地址"]').trigger('click')
+    expect(wrapper.emitted('copy')!.at(-1)).toEqual([image.url])
+    expect(JSON.stringify(dom)).toBe(original)
   })
 
   it('分组后的结构化字段与社交标签仍可完整查看、筛选和复制', async () => {

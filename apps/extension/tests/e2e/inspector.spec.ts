@@ -12,8 +12,7 @@ test('真实侧边栏：类型、展开、搜索、复制、导出与主题', as
   await expect.poll(() => panel.text()).toContain('99n')
   await panel.search('amount')
   await expect.poll(() => panel.text()).toContain('1 条匹配')
-  await panel.click('.search-result .tree-select')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
+  expect(await panel.evaluate(() => document.querySelector('[aria-label^="字段详情"]'))).toBeNull()
   await copyField(panel, 'typed')
   await expect.poll(() => panel.text()).toContain('已复制带类型的数据')
   await website.bringToFront()
@@ -56,22 +55,18 @@ test('真实侧边栏：类型、展开、搜索、复制、导出与主题', as
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('字段选择与展开独立，键盘操作、复制和宽窄布局可用', async ({ extension }, testInfo) => {
+test('分支展开支持键盘操作，复制和宽窄布局可用且没有字段详情入口', async ({ extension }, testInfo) => {
   const { panel } = extension
   await panel.send('Emulation.setDeviceMetricsOverride', { width: 900, height: 780, deviceScaleFactor: 1, mobile: false })
-  const sample = '.data-tree-pane .tree-row:has(> [aria-label="展开 sample"]) .tree-select'
-  await panel.click(sample)
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.detail-field-key')?.textContent?.trim())).toBe('sample')
   expect(await panel.evaluate(() => document.querySelector('.data-tree-pane [aria-label="展开 sample"]')?.getAttribute('aria-expanded'))).toBe('false')
-  expect(await panel.evaluate(() => document.querySelector('.data-tree-pane .tree-select[aria-expanded="true"] .tree-key')?.textContent)).toBe('sample')
+  expect(await panel.evaluate(() => document.querySelector('[aria-label^="字段详情"]'))).toBeNull()
 
-  // 箭头负责展开，字段按钮只选择详情；两者均保留原生键盘行为。
+  // 分支正文使用原生按钮，Enter 和空格均可展开或折叠。
   await panel.evaluate(() => document.querySelector<HTMLButtonElement>('.data-tree-pane [aria-label="展开 sample"]')!.focus())
   await panel.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
   await panel.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
   await expect.poll(() => panel.evaluate(() => document.querySelector('.data-tree-pane')?.textContent)).toContain('Nuxt 3.17.5')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
-  await copyField(panel, 'typed')
+  await copyField(panel, 'typed', 'sample')
   await expect.poll(() => panel.text()).toContain('已复制带类型的数据')
   expect(await panel.evaluate(() => document.querySelector('.data-tree-pane [aria-label="折叠 sample"]')?.getAttribute('aria-expanded'))).toBe('true')
   await panel.evaluate(() => document.querySelector<HTMLButtonElement>('.data-tree-pane [aria-label="折叠 sample"]')!.focus())
@@ -79,12 +74,12 @@ test('字段选择与展开独立，键盘操作、复制和宽窄布局可用',
   await panel.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
   await expect.poll(() => panel.evaluate(() => document.querySelector('.data-tree-pane')?.textContent)).not.toContain('Nuxt 3.17.5')
 
-  // 宽窄屏都使用同一棵树，行内详情和底部导航保持在可用范围内。
+  // 宽窄屏都使用同一棵树，数据模块和底部导航保持在可用范围内。
   expect(await panel.evaluate(() => {
     const tree = document.querySelector('.data-tree-pane')!.getBoundingClientRect()
-    const detail = document.querySelector('.tree-inline-detail .data-field-detail')!.getBoundingClientRect()
+    const shell = document.querySelector('.inspector-shell')!.getBoundingClientRect()
     const footer = document.querySelector('.workspace-footer')!.getBoundingClientRect()
-    return tree.top < 200 && detail.left >= tree.left && detail.right <= tree.right && Math.abs(footer.bottom - document.querySelector('.inspector-shell')!.getBoundingClientRect().bottom) <= 1
+    return tree.top < 200 && tree.left >= shell.left && tree.right <= shell.right && Math.abs(footer.bottom - shell.bottom) <= 1
       && document.documentElement.scrollWidth <= innerWidth
   })).toBe(true)
   await panel.click('.toast-close')
@@ -96,11 +91,6 @@ test('字段选择与展开独立，键盘操作、复制和宽窄布局可用',
   })
   const wide = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })
   await writeFile(testInfo.outputPath('focus-layout-wide.png'), Buffer.from(wide.data, 'base64'))
-  await panel.click('[aria-label="收起字段详情"]')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail'))).toBeNull()
-  await panel.click('.tree-row:has(> [aria-label="折叠 sample"]) .tree-select')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.detail-field-key')?.textContent?.trim())).toBe('sample')
-  await expect.poll(() => panel.evaluate(() => document.querySelector('.tree-inline-detail .data-field-detail')?.getAttribute('aria-busy'))).toBe('false')
   await panel.click('.data-tree-pane [aria-label="折叠 sample"]')
   await panel.evaluate(async () => {
     await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))
@@ -108,9 +98,9 @@ test('字段选择与展开独立，键盘操作、复制和宽窄布局可用',
   await panel.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 780, deviceScaleFactor: 1, mobile: false })
   expect(await panel.evaluate(() => {
     const tree = document.querySelector('.data-tree-pane')!.getBoundingClientRect()
-    const detail = document.querySelector('.tree-inline-detail .data-field-detail')!.getBoundingClientRect()
+    const shell = document.querySelector('.inspector-shell')!.getBoundingClientRect()
     const footer = document.querySelector('.workspace-footer')!.getBoundingClientRect()
-    return detail.left >= tree.left && detail.right <= tree.right && Math.abs(footer.bottom - document.querySelector('.inspector-shell')!.getBoundingClientRect().bottom) <= 1
+    return tree.left >= shell.left && tree.right <= shell.right && Math.abs(footer.bottom - shell.bottom) <= 1
       && document.documentElement.scrollWidth <= innerWidth
   })).toBe(true)
   const narrow = await panel.send<{ data: string }>('Page.captureScreenshot', { format: 'png' })

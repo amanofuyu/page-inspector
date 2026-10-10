@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { FieldDetail } from '../nuxt/detail'
 import type { DataNode, DataTree } from '../nuxt/format'
 import type { CollectedApp, ParsedApp, RawSource } from '../nuxt/types'
 import type { ToastInput } from '@/composables/useToast'
@@ -13,37 +12,28 @@ import UiTabList from '@/components/ui/UiTabList.vue'
 import UiTabPanel from '@/components/ui/UiTabPanel.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import DataTreeNode from './DataTreeNode.vue'
-import FieldDetailPanel from './FieldDetailPanel.vue'
 import RawViewer from './RawViewer.vue'
 import { PAYLOAD_VIEWS } from './usePayloadViewState'
 
-const props = defineProps<{
+defineProps<{
   application: CollectedApp
   parsed: ParsedApp
   tree: DataTree | null
   source?: RawSource
   selectedNode?: DataNode
-  focusedNode?: DataNode
   search: string
   found: { matches: DataNode[], limited: boolean }
   selectionContext: string
-  dataDetail: FieldDetail | null
-  sourceLabels: string[]
   resolveNode: (node: DataNode) => DataNode
   active?: boolean
 }>()
 const emit = defineEmits<{
   export: []
-  select: [node: DataNode]
   notice: [notice: ToastInput]
 }>()
 const view = defineModel<string>('view', { required: true })
 const query = defineModel<string>('query', { required: true })
 const sourceIndex = defineModel<number>('sourceIndex', { required: true })
-const detailVisible = defineModel<boolean>('detailVisible', { required: true })
-function isFocused(node: DataNode) {
-  return detailVisible.value && props.focusedNode?.path === node.path
-}
 </script>
 
 <template>
@@ -74,8 +64,8 @@ function isFocused(node: DataNode) {
               </UiActionButton>
             </template>
           </UiEmptyState>
-          <section v-else class="data-explorer data-tree-pane" aria-label="数据树与字段详情">
-            <div class="detail-pane-heading">
+          <section v-else class="data-explorer data-tree-pane" aria-label="数据树">
+            <div class="data-tree-heading">
               <h2>数据树</h2><span>{{ tree?.count.toLocaleString() }} 个已展示节点</span>
             </div>
             <div :key="search.trim() ? 'search' : selectionContext" :class="search.trim() ? 'search-results' : 'tree-container'">
@@ -96,21 +86,13 @@ function isFocused(node: DataNode) {
                   <p class="result-path">
                     {{ node.path }}
                   </p>
-                  <DataTreeNode :node="node" selectable :selected-path="detailVisible ? focusedNode?.path : undefined" :resolve-node="resolveNode" :active="active" @select="emit('select', $event)" @notice="emit('notice', $event)">
-                    <template #detail="{ node: detailNode }">
-                      <FieldDetailPanel v-if="isFocused(detailNode)" :detail="dataDetail" :node="detailNode" :source-labels="sourceLabels" :resolve-node="resolveNode" :active="active" @close="detailVisible = false" @notice="emit('notice', $event)" />
-                    </template>
-                  </DataTreeNode>
+                  <DataTreeNode :node="node" :resolve-node="resolveNode" :active="active" @notice="emit('notice', $event)" />
                 </div>
                 <UiEmptyState v-if="!found.matches.length">
                   没有匹配的字段，试试其他关键词。
                 </UiEmptyState>
               </template>
-              <DataTreeNode v-else :key="selectionContext" :node="selectedNode" initial-open selectable :selected-path="detailVisible ? focusedNode?.path : undefined" :resolve-node="resolveNode" :active="active" @select="emit('select', $event)" @notice="emit('notice', $event)">
-                <template #detail="{ node: detailNode }">
-                  <FieldDetailPanel v-if="isFocused(detailNode)" :detail="dataDetail" :node="detailNode" :source-labels="sourceLabels" :resolve-node="resolveNode" :active="active" @close="detailVisible = false" @notice="emit('notice', $event)" />
-                </template>
-              </DataTreeNode>
+              <DataTreeNode v-else :key="selectionContext" :node="selectedNode" initial-open :resolve-node="resolveNode" :active="active" @notice="emit('notice', $event)" />
             </div>
           </section>
         </div>
